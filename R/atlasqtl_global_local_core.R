@@ -19,6 +19,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                                         thinned_elbo_eval = TRUE,
                                         debug = FALSE, 
                                         batch, 
+                                        tol_init,
                                         tol_loose,
                                         tol_tight,
                                         burn_in = 20,
@@ -28,8 +29,6 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                                         epsilon = c(2, 1.5, 0.25),
                                         partial_elbo = F,
                                         partial_elbo_eval = F,
-                                        # iter_ladder,
-                                        # e_ladder, 
                                         eval_perform) {
   
   n <- nrow(Y)
@@ -117,6 +116,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
   ind_batch_conv <- length(batch_conv_sched) + 1 # so that, the first time, it enters in the loop below 
   batch_conv <- 1 
   
+
   with(list_hyper, { # list_init not used with the with() function to avoid
     # copy-on-write for large objects
     # Response-specific parameters: objects derived from t02
@@ -152,6 +152,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
     
     # Initialize algorithm status
     #
+    init = T #in the full update initialization stage
     converged <- FALSE #marks whether converged
     partial = FALSE #marks whether in the partial-update stage or convergence evaluation stage
     subsample_q = FALSE #marks whether running full or partial-update in the convergence evaluation stage
@@ -169,6 +170,10 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       time_loop_ls = list() #runtime of CoreDualLoop
       time_total_ls = list() #total runtime of one iteration
       subsample_size_ls = list() #number of responses selected in the iteration
+      zeta_ls = list() #zeta
+      select_prob_ls = list()
+      r_vc_ls = list()
+      
     }
     
     # CAVI starts
@@ -200,14 +205,18 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           sample_q = c(1:q)[rbinom(q, size = 1, prob = select_prob) == 1]
         }
         
+        select_prob_ls = append(select_prob_ls, list(select_prob))
+        
       }else{
         if(batch == "y"){
           sample_q = sample(0:(q-1))
         }else{
           sample_q = sample(1:q)
         }
+        
+        select_prob_ls = append(select_prob_ls, list(rep(1, q)))
       }
-      
+      r_vc_ls = append(r_vc_ls, list(1- apply((1 - gam_vb), 2, prod)))
       
       #record partial and subsample_q
       if(eval_perform){
@@ -384,6 +393,9 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       zeta_vb <- update_zeta_vb_(Z, theta_vb, n0, sig2_zeta_vb, t02_inv,
                                  is_mat = FALSE, c = c) 
       
+      #save all zeta_vb to visualize
+      zeta_ls = append(zeta_ls, list(zeta_vb))
+      
       theta_plus_zeta_vb <- sweep(tcrossprod(theta_vb, rep(1, q)), 2, zeta_vb, `+`)
       log_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE)
       log_1_min_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE, lower.tail = FALSE)  
@@ -488,7 +500,10 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           }
           
           # Set different tolerance depending on the stage of the algorithm
-          if(partial){
+          
+          if(init){
+            tol = tol_init
+          }else if (partial){
             tol = tol_loose
           }else{
             tol = tol_tight
@@ -500,7 +515,12 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           
           if (sum_exceed == 0){
             
-            if (partial == TRUE){ #When tol_loose is reached, leave partial-update stage
+            if(init){
+              it_0 = 0
+              init = F
+              partial = T
+              it_a = 0
+            }else if (partial == TRUE){ #When tol_loose is reached, leave partial-update stage
               it_0 = 0
               partial = FALSE
               
@@ -524,11 +544,11 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         
         # Switch algorithm status at certain timepoints no matter we evaluate the convergence or not
         # 
-        # enter the partial-update stage after burn_in
-        if(it == (it_init + burn_in - 1) ){
-          partial = TRUE
-          it_0 = 0
-        }
+        # enter the partial-update stage after burn_in or 
+        # if(it == (it_init + burn_in - 1) ){
+        #   partial = TRUE
+        #   it_0 = 0
+        # }
         
         # leave the partial-update stage when reaching the maximum number of partial-update iterations (n_partial_update)
         if (partial == TRUE & it >= (it_init + burn_in) & it_0 >= n_partial_update){
@@ -632,7 +652,10 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                            n, p, q, anneal, converged, it, maxit, tol, lb_opt, 
                            diff_lb,
                            perform_df,
-                           it_eval_ls)
+                           it_eval_ls,
+                           zeta_ls,
+                           select_prob_ls,
+                           r_vc_ls)
         
       } else {
         create_named_list_(beta_vb, gam_vb, theta_vb, zeta_vb, 
@@ -734,7 +757,6 @@ elbo_global_local_partial_ <- function(Y, X, sample_q, A2_inv, beta_vb, df, eta,
   
   # needed for monotonically increasing elbo.
   #
-  browser()
   eta_vb <- update_eta_vb_(n, eta[sample_q], gam_vb[,sample_q], mis_pat[,sample_q])
   kappa_vb <- update_kappa_vb_no_precompute_(Y, kappa[sample_q], X_beta_vb[,sample_q], beta_vb[,sample_q], m2_beta[,sample_q], 
                                              sig2_inv_vb, X_norm_sq, mis_pat[,sample_q])

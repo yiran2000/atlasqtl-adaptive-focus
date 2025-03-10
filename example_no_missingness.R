@@ -1,6 +1,7 @@
-library(atlasqtl)
+# library(atlasqtl)
 library(ggplot2)
 library(dplyr)
+library(data.table)
 seed <- 123; set.seed(seed)
 
 ###################
@@ -9,7 +10,7 @@ seed <- 123; set.seed(seed)
 
 # Example with small problem sizes:
 #
-n <- 100; p <- 500; p_act <- 10; q <- 100; q_act <- 100
+n <- 1000; p <- 200; p_act <- 5; q <- 200; q_act <- 10
 
 # Candidate predictors (subject to selection)
 #
@@ -50,7 +51,7 @@ Y <- cbind(Y_act, Y_inact)[, shuff_y_ind]
 # Expectation and variance for the prior number of predictors associated with
 # each response
 #
-p0 <- c(mean(colSums(pat)), 10)
+# p0 <- c(mean(colSums(pat)), 10)
 mu_t <- 1; v_t <- 4 
 
 devtools::load_all()
@@ -61,23 +62,72 @@ system.time(res_atlas <- atlasqtl(as.matrix(Y), as.matrix(X),
                                   user_seed = 1, maxit= 50000,
                                   batch = "y",
                                   thinned_elbo_eval = F,
-                                  anneal = NULL,
-                                  tol_loose = 0.1,
+                                  # anneal = NULL,
+                                  tol_loose = 0.01,
                                   tol_tight = 0.01,
-                                  burn_in = 5,
-                                  maxit_full = 5,
-                                  maxit_subsample = 10,
-                                  n_partial_update = 500,
+                                  burn_in = 50000,
+                                  maxit_full = 1,
+                                  maxit_subsample = 1000000,
+                                  n_partial_update = 500000,
                                   # iter_ladder = c(5, 10, 15, 20, 25, 30, 40, 60, 80, 100),
                                   # e_ladder = c(0.9, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1, 0.05),
                                   epsilon= c(2, 1.5, 0.25),
-                                  partial_elbo = T, #whether we calculate elbo with all responses or only a part
+                                  partial_elbo = F, #whether we calculate elbo with all responses or only a part
                                   partial_elbo_eval = F, #whether diff_lb = lb_new -lb_old or (lb_new-lb_old)/length(sample_q)
                                   eval_perform = T))
 
 ########################
 ## Algorithm evaluation ##
 ########################
+
+################################################################################
+#check zeta
+zeta_df = do.call(rbind, res_atlas$zeta_ls)
+
+
+zeta_long <- reshape2::melt(zeta_df, variable.name = "Column", value.name = "Value")
+colnames(zeta_long) = c("Iteration","Column","Value")
+
+zeta_long = zeta_long %>% mutate(if_sig_protein = if_else(Column %in% which(colSums(pat)>0), 1, 0))
+
+
+ggplot(zeta_long, aes(x = Iteration, y = Value, group = Column, color = as.factor(if_sig_protein))) +
+  geom_line(alpha = 0.5) +  # Line plot
+  geom_point(alpha = 0.7, size = 1) +  # Dot plot
+  labs(x = "Iteration",
+       y = "Zeta") +
+  theme_minimal() 
+
+#check select prob
+
+select_prob_df = do.call(rbind, res_atlas$select_prob_ls)
+select_prob_long <- reshape2::melt(select_prob_df, variable.name = "Column", value.name = "Value")
+colnames(select_prob_long) = c("Iteration","Column","Value")
+select_prob_long = select_prob_long %>% mutate(if_sig_protein = if_else(Column %in% which(colSums(pat)>0), 1, 0))
+
+ggplot(select_prob_long, aes(x = Iteration, y = Value, group = Column, color = as.factor(if_sig_protein))) +
+  geom_line(alpha = 0.5) +  # Line plot
+  geom_point(alpha = 0.7, size = 1) +  # Dot plot
+  labs(x = "Iteration",
+       y = "select_prob") +
+  theme_minimal() 
+
+
+#check r_vc
+
+r_vc_df = do.call(rbind, res_atlas$r_vc_ls)
+r_vc_long <- reshape2::melt(r_vc_df, variable.name = "Column", value.name = "Value")
+colnames(r_vc_long) = c("Iteration","Column","Value")
+r_vc_long = r_vc_long %>% mutate(if_sig_protein = if_else(Column %in% which(colSums(pat)>0), 1, 0))
+
+ggplot(r_vc_long, aes(x = Iteration, y = Value, group = Column, color = as.factor(if_sig_protein))) +
+  geom_line(alpha = 0.1) +  # Line plot
+  geom_point(alpha = 0.7, size = 1) +  # Dot plot
+  labs(x = "Iteration",
+       y = "r_vc") +
+  theme_minimal() 
+
+
 
 perform_df= res_atlas$perform_df
 
@@ -108,6 +158,14 @@ perform_df %>%
 #   new_e = lognormal_cdf(iter, mu = 1, sigma = 0.5)
 # ) %>% ggplot(aes(x = iter, y =  new_e, color = subsample)) + geom_point()
 
+
+#
+
+res_atlas$perform_df %>% 
+  as.data.frame() %>% 
+  ggplot(aes(x = iter, y = ELBO_diff, color = partial))+ 
+  geom_point()+
+  geom_line()
  
 #evaluate AUROC and AUPRC
 roc <- PRROC::roc.curve(scores.class0 = as.vector(res_atlas$gam_vb), weights.class0 = as.vector(as.matrix(pat)), curve =TRUE)
