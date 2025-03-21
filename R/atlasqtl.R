@@ -183,18 +183,11 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                      checkpoint_path = NULL, trace_path = NULL, 
                      add_collinear_back = FALSE,
                      batch,
-                     tol_init,
-                     tol_loose,
-                     tol_tight,
-                     burn_in = 20,
-                     maxit_full = 10,
-                     maxit_subsample = 5,
-                     n_partial_update = 500,
-                     # iter_ladder,
-                     # e_ladder,
-                     epsilon = c(2, 1.5, 0.25),
-                     partial_elbo,
-                     partial_elbo_eval,
+                     tol,
+                     max_partial,
+                     end_full = F, #whether the algorithm should go back to full in the end
+                     # epsilon = c(2, 1.5, 0.25),
+                     epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
                      eval_perform) {
   
   if (verbose != 0){
@@ -214,7 +207,7 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
   
   if (verbose != 0) cat("== Preparing the data ... \n\n")
   
-  dat <- prepare_data_(Y, X, tol=tol_tight, maxit, user_seed, verbose, checkpoint_path, 
+  dat <- prepare_data_(Y, X, tol, maxit, user_seed, verbose, checkpoint_path, 
                        trace_path)
   
   bool_rmvd_x <- dat$bool_rmvd_x
@@ -291,16 +284,11 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                                              trace_path, full_output,
                                              thinned_elbo_eval, debug,
                                              batch,
-                                             tol_init,
-                                             tol_loose,
-                                             tol_tight,
-                                             burn_in,
-                                             maxit_full,
-                                             maxit_subsample,
-                                             n_partial_update,
-                                             epsilon,
-                                             partial_elbo,
-                                             partial_elbo_eval,
+                                             tol,
+                                             max_partial, #maximum number of iterations for partial-update, if one wants to add
+                                             end_full, #whether the algorithm should go back to full in the end
+                                             # epsilon = c(2, 1.5, 0.25),
+                                             epsilon,#e0, emax, ec50, n
                                              eval_perform)
     
   } else {

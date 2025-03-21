@@ -10,6 +10,10 @@ library(tictoc)
 lognormal_cdf <- function(x, mu, sigma, m) {
   return(m + (1 - m) * pnorm((log(x) - mu) / sigma))
 }
+emax <- function(x, e0=0, emax = 1, ec50, n) {
+  e0 + ((emax-e0) * x^n) / (ec50^n +x^n)
+}
+
 
 
 atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df, 
@@ -19,16 +23,11 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                                         thinned_elbo_eval = TRUE,
                                         debug = FALSE, 
                                         batch, 
-                                        tol_init,
-                                        tol_loose,
-                                        tol_tight,
-                                        burn_in = 20,
-                                        maxit_full = 10,
-                                        maxit_subsample = 5,
-                                        n_partial_update = 500,
-                                        epsilon = c(2, 1.5, 0.25),
-                                        partial_elbo = F,
-                                        partial_elbo_eval = F,
+                                        tol,
+                                        max_partial = NULL, #maximum number of iterations for partial-update, if one wants to add
+                                        end_full = F, #whether the algorithm should go back to full in the end
+                                        # epsilon = c(2, 1.5, 0.25),
+                                        epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
                                         eval_perform) {
   
   n <- nrow(Y)
@@ -93,20 +92,23 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
   if (is.null(anneal)) {
     annealing <- FALSE
     c <- c_s <- 1 # c_s for scale parameters
-    it_init <- 1 # first non-annealed iteration 
+    it_endAnneal <- 1 # first non-annealed iteration 
   } else {
     annealing <- TRUE
     ladder <- get_annealing_ladder_(anneal, verbose)
     c <- ladder[1]
     c_s <- ifelse(anneal_scale, c, 1) 
-    it_init <- anneal[3] # first non-annealed iteration 
+    it_endAnneal <- anneal[3] # first non-annealed iteration 
   }
   
   eps <- .Machine$double.eps^0.5
   
   if (thinned_elbo_eval) {
-    times_conv_sched <- c(1, 5, 10, 50) 
-    batch_conv_sched <- c(1, 10, 25, 50) 
+    # times_conv_sched <- c(1, 5, 10, 50) 
+    # batch_conv_sched <- c(1, 10, 25, 50) 
+    
+    times_conv_sched <- c(1, 10, 20) 
+    batch_conv_sched <- c(10, 25, 50) 
   } else {
     times_conv_sched <- 1
     batch_conv_sched <- 1
@@ -145,17 +147,15 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
     lb_new <- -Inf #the latest ELBO
     it <- 0 #total iteration index
     it_0 = 0 #partial iteration index
-    it_a = 0 #annealing iteration index
     diff_lb = Inf #current difference of ELBO
     #define the error term in response selection
     e = 1
     
     # Initialize algorithm status
     #
-    init = T #in the full update initialization stage
     converged <- FALSE #marks whether converged
-    partial = FALSE #marks whether in the partial-update stage or convergence evaluation stage
-    subsample_q = FALSE #marks whether running full or partial-update in the convergence evaluation stage
+    # init = T #marker whether we are in the initial full update stage
+    partial = T #marks whether in the partial-update stage or convergence evaluation stage
     
     # Initialize empty vectors to keep track of the algorithm
     #
@@ -173,7 +173,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       zeta_ls = list() #zeta
       select_prob_ls = list()
       r_vc_ls = list()
-      
+      annealing_ls = list()
     }
     
     # CAVI starts
@@ -185,15 +185,21 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       
       lb_old <- lb_new
       it <- it + 1
-      it_0 = it_0 + 1
-    
-
+      
+      if(partial){
+        it_0 = it_0 + 1
+      }
+      
       if (verbose != 0 &  (it == 1 | it %% max(5, batch_conv) == 0)) 
         cat(paste0("Iteration ", format(it), "... \n"))
       
       
       # generate subsample
-      if(subsample_q | partial){
+      if(partial){
+        # update e:
+        # e = lognormal_cdf(diff_lb, mu=epsilon[1], sigma=epsilon[2], m=epsilon[3])
+        e = emax(if_else(diff_lb>1e10, 1e10, diff_lb), e0= epsilon[1], emax = epsilon[2], ec50 = epsilon[3], n = epsilon[4]) 
+        print(e)
         
         # calculate the selection probability 
         r_vc = 1- apply((1 - gam_vb), 2, prod) #PPI
@@ -221,7 +227,6 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       #record partial and subsample_q
       if(eval_perform){
         partial_ls = c(partial_ls, partial)
-        subsample_ls = c(subsample_ls, subsample_q)
       }
       
       # update VB parameters
@@ -447,131 +452,83 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       } else {
         
 
-        # Evaluate ELBO
-        #  
-        if (it <= it_init + 1 | it %% batch_conv == 0 | it %% batch_conv == 1){ 
-          # it <= it_init + 1 evaluate the ELBO for the first two non-annealed iterations
-          # to (also) evaluate convergence between two consecutive iterations
-          
-          if(partial_elbo){
-            #only select the responses updated at the current iteration and calculate this elbo
-            lb_new <- elbo_global_local_partial_(Y, X, sample_q, A2_inv, beta_vb, df, eta, eta_vb, gam_vb,
-                                                 kappa, kappa_vb, L_vb, lam2_inv_vb, 
-                                                 log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, 
-                                                 m0, m2_beta,
-                                                 n0, nu, nu_s0_vb, nu_vb, nu_xi_inv_vb,
-                                                 Q_app, rho, rho_s0_vb, rho_vb, rho_xi_inv_vb,
-                                                 shr_fac_inv, sig02_inv_vb, sig2_beta_vb,
-                                                 sig2_inv_vb,  sig2_theta_vb, sig2_zeta_vb,
-                                                 t02_inv, tau_vb, theta_vb, vec_sum_log_det_zeta,
-                                                 xi_inv_vb, zeta_vb, mis_pat)
-            
-            
-          }else{
-            lb_new <- elbo_global_local_full_(Y, A2_inv, beta_vb, df, eta, eta_vb, gam_vb,
-                                              kappa, kappa_vb, L_vb, lam2_inv_vb, 
-                                              log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, 
-                                              m0, m2_beta, n0, nu, nu_s0_vb, nu_vb, nu_xi_inv_vb,
-                                              Q_app, rho, rho_s0_vb, rho_vb, rho_xi_inv_vb,
-                                              shr_fac_inv, sig02_inv_vb, sig2_beta_vb,
-                                              sig2_inv_vb,  sig2_theta_vb, sig2_zeta_vb,
-                                              t02_inv, tau_vb, theta_vb, vec_sum_log_det_zeta,
-                                              xi_inv_vb, zeta_vb, X_norm_sq, Y_norm_sq, cp_Y_X, cp_X_Xbeta, mis_pat)
+      # Evaluate ELBO
+      #  
+      if (it <= it_endAnneal + 1 | it %% batch_conv == 0 | it %% batch_conv == 1){ 
+        # it <= it_endAnneal + 1 evaluate the ELBO for the first two non-annealed iterations
+        # to (also) evaluate convergence between two consecutive iterations
 
-          }
+        lb_new <- elbo_global_local_full_(Y, A2_inv, beta_vb, df, eta, eta_vb, gam_vb,
+                                          kappa, kappa_vb, L_vb, lam2_inv_vb, 
+                                          log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, 
+                                          m0, m2_beta, n0, nu, nu_s0_vb, nu_vb, nu_xi_inv_vb,
+                                          Q_app, rho, rho_s0_vb, rho_vb, rho_xi_inv_vb,
+                                          shr_fac_inv, sig02_inv_vb, sig2_beta_vb,
+                                          sig2_inv_vb,  sig2_theta_vb, sig2_zeta_vb,
+                                          t02_inv, tau_vb, theta_vb, vec_sum_log_det_zeta,
+                                          xi_inv_vb, zeta_vb, X_norm_sq, Y_norm_sq, cp_Y_X, cp_X_Xbeta, mis_pat)
 
-          
-          if (verbose != 0 & (it == it_init | it %% max(5, batch_conv) == 0))
-            cat(paste0("ELBO = ", format(lb_new), "\n\n"))
-          
-          # if (debug && lb_new + eps < lb_old)
-          #   stop("ELBO not increasing monotonically. Exit. ")
-          
-          if (partial_elbo_eval){
-            diff_lb = abs(lb_new - lb_old)/length(sample_q)
-          }else{
-            diff_lb = abs(lb_new - lb_old)
-          }
-          
-          diff_lb = abs(lb_new - lb_old)
-          # Record the iteration where ELBO is evaluated
-          if(eval_perform){
-            it_eval_ls = c(it_eval_ls, it)
-          }
-          
-          # Set different tolerance depending on the stage of the algorithm
-          
-          if(init){
-            tol = tol_init
-          }else if (partial){
-            tol = tol_loose
-          }else{
-            tol = tol_tight
-          }
-          
-          sum_exceed <- sum(diff_lb > (times_conv_sched * tol))
-          # times_conv_sched*tol sets how many more iterations should be conducted before the next ELBO evaluaion, 
-          # which is defined by batch_conv_shed
-          
-          if (sum_exceed == 0){
-            
-            if(init){
-              it_0 = 0
-              init = F
-              partial = T
-              it_a = 0
-            }else if (partial == TRUE){ #When tol_loose is reached, leave partial-update stage
-              it_0 = 0
-              partial = FALSE
-              
-              it_a = 0
-            } else{ #when tol_tight is reached in the full-update stage, algorithm converges
-              converged = TRUE
-            }
-            
-          }else if (ind_batch_conv > sum_exceed) {
-            
-            # If ELBO diff is too large, set the next time where ELBO is evaluated depending on how big the difference is
-            ind_batch_conv <- sum_exceed
-            batch_conv <- batch_conv_sched[ind_batch_conv]
-            
-          }
+
+
         
+        if (verbose != 0 & (it == it_endAnneal | it %% max(5, batch_conv) == 0))
+          cat(paste0("ELBO = ", format(lb_new), "\n\n"))
+        
+        if (debug && lb_new + eps < lb_old){
+          stop("ELBO not increasing monotonically. Exit. ")
         }
-      
-        # update e:
-        e = lognormal_cdf(diff_lb, mu=epsilon[1], sigma=epsilon[2], m=epsilon[3])
+
+        # diff_lb = abs(lb_new - lb_old)
+        diff_lb = lb_new - lb_old
         
-        # Switch algorithm status at certain timepoints no matter we evaluate the convergence or not
-        # 
-        # enter the partial-update stage after burn_in or 
-        # if(it == (it_init + burn_in - 1) ){
-        #   partial = TRUE
-        #   it_0 = 0
+        # Record the iteration where ELBO is evaluated
+        if(eval_perform){
+          it_eval_ls = c(it_eval_ls, it)
+        }
+        
+        # Set different tolerance depending on the stage of the algorithm
+        
+        # if(init){
+        #   tol = tol_init
+        # }else{
+        #   tol = tol_tight
         # }
         
-        # leave the partial-update stage when reaching the maximum number of partial-update iterations (n_partial_update)
-        if (partial == TRUE & it >= (it_init + burn_in) & it_0 >= n_partial_update){
-          partial = FALSE
-          it_0 = 0
-        }
+        sum_exceed <- sum(diff_lb > (times_conv_sched * tol))
+        # times_conv_sched*tol sets how many more iterations should be conducted before the next ELBO evaluaion, 
+        # which is defined by batch_conv_shed
         
-        
-        # switch between full and partial update in the final convergence evaluation stage
-        if(partial == FALSE & it >= (it_init + burn_in)){
+        if (sum_exceed == 0){
           
-          # enters full-update when we have run maxit_subsample number of partial iterations
-          if(subsample_q == TRUE & it_0 >= maxit_subsample){
-            subsample_q = FALSE
-            it_0 = 0
-          } 
+          # if(init){
+          #   init = F
+          #   partial = T
+          # } else if (end_full & partial){ #switch back to full update if end_full
+          #   partial = F
+          # } else if (end_full == F & partial){
+          #   converged = T
+          # } else{
+          #   converged = T
+          # }
           
-          # enters partial-update when we have run maxit_full number of partial iterations
-          if(it >= (it_init + burn_in) & subsample_q == FALSE & it_0 >= maxit_full){
-            subsample_q = TRUE
-            it_0 = 0
+          if (end_full & partial){ #switch back to full update if end_full
+            partial = F
+          } else if (end_full == F & partial){
+            converged = T
+          } else{
+            converged = T
           }
+          
+        }else if (ind_batch_conv > sum_exceed) {
+          
+          # If ELBO diff is too large, set the next time where ELBO is evaluated depending on how big the difference is
+          ind_batch_conv <- sum_exceed
+          batch_conv <- batch_conv_sched[ind_batch_conv]
+          
         }
+      
+      }
+
         
         checkpoint_(it, checkpoint_path, beta_vb, gam_vb, theta_vb, zeta_vb, 
                     converged, lb_new, lb_old,
@@ -580,6 +537,22 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           
           
       }
+      # Switch algorithm status at certain iterations no matter we evaluate the convergence or not
+      # leave the partial-update stage when reaching the maximum number of partial-update iterations
+      # leave the inital stage when reaching max_init
+      # if(!is.null(max_init)){
+      #   if(it >= max_init & init){
+      #     init = F
+      #     partial = T
+      #   }
+      # }
+
+      if(!is.null(max_partial)){
+        if(end_full & partial & it_0 >= max_partial){
+          partial = F
+        }
+      }
+      
       
       #run time of the entire iteration
       t1 = Sys.time()-t0
@@ -592,6 +565,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         time_loop_ls = c(time_loop_ls, t)
         time_total_ls = c(time_total_ls, t1)
         subsample_size_ls = c(subsample_size_ls, length(sample_q))
+        annealing_ls = c(annealing_ls, annealing)
       }
       
     }
@@ -633,19 +607,20 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       names(zeta_vb) <- names_y
       names(lam2_inv_vb) <- names_x
       
-      diff_lb <- abs(lb_opt - lb_old)
+      # diff_lb <- abs(lb_opt - lb_old)
+      diff_lb <- lb_opt - lb_old
       
       if(eval_perform){
         perform_df = data.frame(
           iter = it_ls %>% unlist,
-          subsample = subsample_ls %>% unlist,
           partial = partial_ls %>% unlist,
           ELBO = ELBO_ls %>% unlist,
           ELBO_diff = ELBO_diff_ls %>% unlist,
           e = e_ls %>% unlist,
           time_loop = time_loop_ls %>% unlist,
           time_total = time_total_ls %>% unlist,
-          subsample_size = subsample_size_ls %>% unlist
+          subsample_size = subsample_size_ls %>% unlist,
+          annealing = annealing_ls %>% unlist
         )
         
         create_named_list_(beta_vb, gam_vb, theta_vb, zeta_vb, 
