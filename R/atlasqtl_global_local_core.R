@@ -227,6 +227,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       #record partial and subsample_q
       if(eval_perform){
         partial_ls = c(partial_ls, partial)
+        annealing_ls = c(annealing_ls, annealing)
       }
       
       # update VB parameters
@@ -565,7 +566,6 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         time_loop_ls = c(time_loop_ls, t)
         time_total_ls = c(time_total_ls, t1)
         subsample_size_ls = c(subsample_size_ls, length(sample_q))
-        annealing_ls = c(annealing_ls, annealing)
       }
       
     }
