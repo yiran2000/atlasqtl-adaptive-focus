@@ -13,6 +13,13 @@ lognormal_cdf <- function(x, mu, sigma, m) {
 emax <- function(x, e0=0, emax = 1, ec50, n) {
   e0 + ((emax-e0) * x^n) / (ec50^n +x^n)
 }
+logistic_function = function(x) {
+  1/ (1 + exp(-x))
+}
+
+# tanh_function <- function(x) {
+#   (exp(x) - exp(-x)) / (exp(x) + exp(-x))
+# }
 
 
 
@@ -24,10 +31,15 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                                         debug = FALSE, 
                                         batch, 
                                         tol,
+                                        start_partial = 20, #when partial-update starts
                                         max_partial = NULL, #maximum number of iterations for partial-update, if one wants to add
                                         end_full = F, #whether the algorithm should go back to full in the end
                                         # epsilon = c(2, 1.5, 0.25),
-                                        epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
+                                        # epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
+                                        epsilon_scheme = "logistic",
+                                        
+                                        min_epsilon = 0.1,
+                                        geom_alpha = NULL,
                                         eval_perform) {
   
   n <- nrow(Y)
@@ -106,9 +118,9 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
   if (thinned_elbo_eval) {
     # times_conv_sched <- c(1, 5, 10, 50) 
     # batch_conv_sched <- c(1, 10, 25, 50) 
-    
-    times_conv_sched <- c(1, 10, 20) 
-    batch_conv_sched <- c(10, 25, 50) 
+
+    times_conv_sched <- c(1, 5, 10, start_partial)
+    batch_conv_sched <- c(1, 10, 25, 25)
   } else {
     times_conv_sched <- 1
     batch_conv_sched <- 1
@@ -155,7 +167,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
     #
     converged <- FALSE #marks whether converged
     # init = T #marker whether we are in the initial full update stage
-    partial = T #marks whether in the partial-update stage or convergence evaluation stage
+    partial = F #marks whether in the partial-update stage or convergence evaluation stage
     
     # Initialize empty vectors to keep track of the algorithm
     #
@@ -186,9 +198,13 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       lb_old <- lb_new
       it <- it + 1
       
-      if(partial){
+      if(diff_lb > start_partial*tol & partial == F){
+        partial = F
+      }else{
+        partial = T
         it_0 = it_0 + 1
       }
+      
       
       if (verbose != 0 &  (it == 1 | it %% max(5, batch_conv) == 0)) 
         cat(paste0("Iteration ", format(it), "... \n"))
@@ -198,8 +214,16 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       if(partial){
         # update e:
         # e = lognormal_cdf(diff_lb, mu=epsilon[1], sigma=epsilon[2], m=epsilon[3])
-        e = emax(if_else(diff_lb>1e10, 1e10, diff_lb), e0= epsilon[1], emax = epsilon[2], ec50 = epsilon[3], n = epsilon[4]) 
-        print(e)
+        if(epsilon_scheme == "logistic"){
+          e = max(min_epsilon, logistic_function(log(diff_lb)))
+        }else if(epsilon_scheme == "geometric"){
+          e <- max(min_epsilon, geom_alpha^(it_0-1))
+          # e = 1- tanh_function(log(it)/2)
+        }
+        
+        
+
+        #use log-scale relative ELBO
         
         # calculate the selection probability 
         r_vc = 1- apply((1 - gam_vb), 2, prod) #PPI

@@ -184,10 +184,14 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                      add_collinear_back = FALSE,
                      batch,
                      tol,
+                     start_partial,
                      max_partial,
                      end_full = F, #whether the algorithm should go back to full in the end
                      # epsilon = c(2, 1.5, 0.25),
-                     epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
+                     # epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
+                     epsilon_scheme = "logistic",
+                     min_epsilon = 0.1,
+                     geom_alpha = NULL,
                      eval_perform) {
   
   if (verbose != 0){
@@ -285,10 +289,13 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                                              thinned_elbo_eval, debug,
                                              batch,
                                              tol,
+                                             start_partial,
                                              max_partial, #maximum number of iterations for partial-update, if one wants to add
                                              end_full, #whether the algorithm should go back to full in the end
                                              # epsilon = c(2, 1.5, 0.25),
-                                             epsilon,#e0, emax, ec50, n
+                                             epsilon_scheme,#e0, emax, ec50, n
+                                             min_epsilon,
+                                             geom_alpha,
                                              eval_perform)
     
   } else {
