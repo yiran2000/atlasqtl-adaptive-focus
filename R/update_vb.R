@@ -52,15 +52,43 @@ update_sig2_beta_vb_ <- function(n, sig2_inv_vb, tau_vb = NULL, X_norm_sq = NULL
 # update_X_beta_vb_ <- function(X, beta_vb) X %*% beta_vb
 
 update_cp_X_Xbeta_ <- function(cp_X, beta_vb, cp_X_rm = NULL) {
-  
+
   out <- crossprod(cp_X, beta_vb)
-  
+
   if (!is.null(cp_X_rm)) {
     out <- out - sapply(seq_along(cp_X_rm), function(k) crossprod(cp_X_rm[[k]], beta_vb[,k]))
   }
-  
+
   out
 }
+
+# update_cp_X_Xbeta <- function(cp_X, beta_vb, beta_vb_old, out_old, updated_idx = NULL, cp_X_rm = NULL) {
+#   # Clone old result
+#   out <- out_old
+#   
+#   # Only recompute the columns in updated_idx
+#   if(!is.null(updated_idx)){
+#     for (j in updated_idx) {
+#       out[, j] <- cp_X %*% beta_vb[, j]
+#       
+#       # Subtract the correction term if cp_X_rm is provided
+#       if (!is.null(cp_X_rm)) {
+#         out[, j] <- out[, j] - cp_X_rm[[j]] %*% beta_vb[, j]
+#       }
+#     }
+#   }else{
+# 
+#       if (!is.null(cp_X_rm)) {
+#         out <- out - sapply(seq_along(cp_X_rm), function(k) crossprod(cp_X_rm[[k]], beta_vb[,k]))
+#       }else{
+#         out <- crossprod(cp_X, beta_vb)
+#       }
+#   }
+# 
+#   
+#   out
+# }
+
 
 
 ####################
