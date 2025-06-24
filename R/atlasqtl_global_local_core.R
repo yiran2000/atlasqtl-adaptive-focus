@@ -72,7 +72,8 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
   Y_norm_sq <- colSums(Y^2) # must be after the if as some entries of y set to 0 when missing values
   cp_X <- crossprod(X)
   cp_Y_X <- crossprod(Y, X)
-  toc()
+  t_init = toc()
+  time_init = t_init$tic - t_init$toc
   
 
   # Gathering initial variational parameters. Do it explicitly.
@@ -285,24 +286,36 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       }
       
       # update VB parameters
+      tic("sigma")
       # % # sigma^2, global 
       nu_vb <- update_nu_vb_(nu, sum(gam_vb), c = c)
       rho_vb <- update_rho_vb_(rho, m2_beta, tau_vb, c = c)
       
       sig2_inv_vb <- nu_vb / rho_vb
       # % #
+      t_sigma = toc()
+      time_sigma = t_sigma$tic - t_sigma$toc
       
+      
+      tic("tau")
       # % # tau, local
       eta_vb <- update_eta_vb_(n, eta, gam_vb, mis_pat, c = c)
       kappa_vb <- update_kappa_vb_(n, Y_norm_sq, cp_Y_X, cp_X_Xbeta, kappa, 
                                    beta_vb, m2_beta, sig2_inv_vb, X_norm_sq, c = c)
       
       tau_vb <- eta_vb / kappa_vb
-      
-      sig2_beta_vb <- update_sig2_beta_vb_(n, sig2_inv_vb, tau_vb, X_norm_sq, c = c) #beta
-      
       log_tau_vb <- update_log_tau_vb_(eta_vb, kappa_vb)
       log_sig2_inv_vb <- update_log_sig2_inv_vb_(nu_vb, rho_vb)
+      
+      t_tau = toc()
+      time_tau = t_tau$tic - t_tau$toc
+      
+      
+      #beta
+      tic("sig2_beta")
+      sig2_beta_vb <- update_sig2_beta_vb_(n, sig2_inv_vb, tau_vb, X_norm_sq, c = c) 
+      t_sig2_beta = toc()
+      time_sig2_beta = t_sig2_beta$tic - t_sig2_beta$toc
       
 
       
@@ -399,10 +412,22 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         
       }
       
+      tic("beta2")
       m2_beta <- update_m2_beta_(gam_vb, mu_beta_vb, sig2_beta_vb, mis_pat = mis_pat)
-      
+      t_m2_beta = toc()
+      time_m2_beta = t_m2_beta$tic - t_m2_beta$toc
 
-      Z <- update_Z_(gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, c = c)
+      tic("Z")
+      if(ifZ==T & it > 1){
+        Z <- update_Z_partial_(Z, gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, sample_q, c = c)
+      }else{
+        Z <- update_Z_(gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, c = c)
+      }
+      t_Z = toc()
+      time_Z = t_Z$tic - t_Z$toc
+      
+      
+      tic("theta")
       # keep this order!
       #  
       L_vb <- c_s * sig02_inv_vb * shr_fac_inv * (theta_vb^2 + sig2_theta_vb - 2 * theta_vb * m0 + m0^2) / 2 / df 
@@ -447,6 +472,10 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       theta_vb <- update_theta_vb_(Z, m0, sig02_inv_vb * lam2_inv_vb * shr_fac_inv, sig2_theta_vb,
                                    vec_fac_st = NULL, zeta_vb, is_mat = FALSE, c = c)
       
+      t_theta = toc()
+      time_theta = t_theta$tic - t_theta$toc
+      
+      tic("zeta")
       nu_s0_vb <- update_nu_vb_(1 / 2, p, c = c_s)
       
       rho_s0_vb <- c_s * (xi_inv_vb + 
@@ -456,14 +485,21 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       
       zeta_vb <- update_zeta_vb_(Z, theta_vb, n0, sig2_zeta_vb, t02_inv,
                                  is_mat = FALSE, c = c) 
+
+      t_zeta = toc()
+      time_zeta = t_zeta$tic - t_zeta$toc
       
       #save all zeta_vb to visualize
       zeta_ls = append(zeta_ls, list(zeta_vb))
       
+      tic("theta+zeta")
+      
       theta_plus_zeta_vb <- sweep(tcrossprod(theta_vb, rep(1, q)), 2, zeta_vb, `+`)
       log_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE)
       log_1_min_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE, lower.tail = FALSE)  
-
+      
+      t_zetaPtheta = toc()
+      time_zetaPtheta = t_zetaPtheta$tic - t_zetaPtheta$toc
       
       
       
@@ -487,7 +523,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         
       }
       
-      
+      tic("ELBO")
       # Update annealing parameters
       #
       if (annealing) {
@@ -513,7 +549,6 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         
       } else {
         
-
       # Evaluate ELBO
       if(partial){it_e = it_0}else{it_e = it}
       if (it <= it_endAnneal + 1 | it_e %% batch_conv == 0 | it_e %% batch_conv == 1 ){ 
@@ -585,6 +620,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         }
       
       }
+        
 
         
         checkpoint_(it, checkpoint_path, beta_vb, gam_vb, theta_vb, zeta_vb, 
@@ -594,6 +630,8 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           
           
       }
+      t_ELBO = toc()
+      time_ELBO = t_ELBO$tic - t_ELBO$toc
       # Switch algorithm status at certain iterations no matter we evaluate the convergence or not
       # leave the partial-update stage when reaching the maximum number of partial-update iterations
       # leave the inital stage when reaching max_init
