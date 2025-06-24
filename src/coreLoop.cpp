@@ -68,9 +68,6 @@ void coreDualLoop(const MapMat cp_X,
   
   const Arr1D cst = -(log_tau_vb + log_sig2_inv_vb + log(sig2_beta_vb) )/ 2;
   
-  const bool use_given_log_pnorm = std::abs(c - 1.0) < 1e-8;
-  const double sqrt_c = std::sqrt(c);
-  
   for (int a = 0; a < sample_q.size(); a++) {
     int k = sample_q[a];
     
@@ -91,27 +88,14 @@ void coreDualLoop(const MapMat cp_X,
                                                - mu_beta_vb(j, k)*mu_beta_vb(j, k) / (2 * sig2_beta_vb[k])
                                                + cst[k])));
                                                
-      m1_beta(j, k) = gam_vb(j, k) * mu_beta_vb(j, k);
+                                               m1_beta(j, k) = gam_vb(j, k) * mu_beta_vb(j, k);
                                                
-      cp_betaX_X.col(k) += (m1_beta(j, k) - m1_beta_jk) * cp_X.col(j);
-      
-      // ==== Inline update of Z ====
-      //double u = sqrt_c * theta_plus_zeta_vb(j, k);
-      
-      //double lp = log_Phi_theta_plus_zeta(j, k);
-      //double l1p = log_1_min_Phi_theta_plus_zeta(j, k);
-      //double log_p = use_given_log_pnorm ? lp : R::pnorm(u, 0.0, 1.0, true, true);
-      //double log_1_p = use_given_log_pnorm ? l1p : R::pnorm(u, 0.0, 1.0, false, true);
-      
-      //double imr0 = inv_mills_ratio_scalar(0, u, log_1_p, log_p);
-      //double imr1 = inv_mills_ratio_scalar(1, u, log_1_p, log_p);
-      
-      //Z(j, k) = (gam_vb(j, k) * (imr1 - imr0) + imr0) / sqrt_c + theta_plus_zeta_vb(j, k);
-    }
+                                               cp_betaX_X.col(k) += (m1_beta(j, k) - m1_beta_jk) * cp_X.col(j);
                                                
                                                
     } 
   }
+}
 
 // [[Rcpp::export]]
 void coreDualLoopZ(const MapMat cp_X,

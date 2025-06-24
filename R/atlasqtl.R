@@ -194,7 +194,7 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                      min_epsilon = 0.1,
                      geom_alpha = NULL,
                      eval_perform,
-                     ifZ) {
+                     ifZ = F) {
   
   if (verbose != 0){
     cat(paste0("\n======================= \n",

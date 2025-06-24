@@ -62,6 +62,18 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
+// update_log_pnorm_partial
+List update_log_pnorm_partial(const Eigen::ArrayXXd& theta_plus_zeta_vb, const IntegerVector& sample_q);
+RcppExport SEXP _atlasqtl_update_log_pnorm_partial(SEXP theta_plus_zeta_vbSEXP, SEXP sample_qSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::ArrayXXd& >::type theta_plus_zeta_vb(theta_plus_zeta_vbSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type sample_q(sample_qSEXP);
+    rcpp_result_gen = Rcpp::wrap(update_log_pnorm_partial(theta_plus_zeta_vb, sample_q));
+    return rcpp_result_gen;
+END_RCPP
+}
 // coreDualMisLoop
 void coreDualMisLoop(const MapMat cp_X, const List cp_X_rm, const MapMat cp_Y_X, MapArr2D gam_vb, const MapArr2D log_Phi_theta_plus_zeta, const MapArr2D log_1_min_Phi_theta_plus_zeta, const double log_sig2_inv_vb, const MapArr1D log_tau_vb, MapMat m1_beta, MapMat cp_betaX_X, MapArr2D mu_beta_vb, const MapArr2D sig2_beta_vb, const MapArr1D tau_vb, const Eigen::VectorXi shuffled_ind, const Eigen::VectorXi sample_q, const double c);
 RcppExport SEXP _atlasqtl_coreDualMisLoop(SEXP cp_XSEXP, SEXP cp_X_rmSEXP, SEXP cp_Y_XSEXP, SEXP gam_vbSEXP, SEXP log_Phi_theta_plus_zetaSEXP, SEXP log_1_min_Phi_theta_plus_zetaSEXP, SEXP log_sig2_inv_vbSEXP, SEXP log_tau_vbSEXP, SEXP m1_betaSEXP, SEXP cp_betaX_XSEXP, SEXP mu_beta_vbSEXP, SEXP sig2_beta_vbSEXP, SEXP tau_vbSEXP, SEXP shuffled_indSEXP, SEXP sample_qSEXP, SEXP cSEXP) {
@@ -91,6 +103,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_atlasqtl_coreDualLoop", (DL_FUNC) &_atlasqtl_coreDualLoop, 15},
     {"_atlasqtl_coreDualLoopZ", (DL_FUNC) &_atlasqtl_coreDualLoopZ, 17},
+    {"_atlasqtl_update_log_pnorm_partial", (DL_FUNC) &_atlasqtl_update_log_pnorm_partial, 2},
     {"_atlasqtl_coreDualMisLoop", (DL_FUNC) &_atlasqtl_coreDualMisLoop, 16},
     {NULL, NULL, 0}
 };

@@ -9,6 +9,10 @@ coreDualLoopZ <- function(cp_X, cp_Y_X, Z, gam_vb, theta_plus_zeta_vb, log_Phi_t
     invisible(.Call(`_atlasqtl_coreDualLoopZ`, cp_X, cp_Y_X, Z, gam_vb, theta_plus_zeta_vb, log_Phi_theta_plus_zeta, log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb, m1_beta, cp_betaX_X, mu_beta_vb, sig2_beta_vb, tau_vb, shuffled_ind, sample_q, c))
 }
 
+update_log_pnorm_partial <- function(theta_plus_zeta_vb, sample_q) {
+    .Call(`_atlasqtl_update_log_pnorm_partial`, theta_plus_zeta_vb, sample_q)
+}
+
 coreDualMisLoop <- function(cp_X, cp_X_rm, cp_Y_X, gam_vb, log_Phi_theta_plus_zeta, log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb, m1_beta, cp_betaX_X, mu_beta_vb, sig2_beta_vb, tau_vb, shuffled_ind, sample_q, c = 1) {
     invisible(.Call(`_atlasqtl_coreDualMisLoop`, cp_X, cp_X_rm, cp_Y_X, gam_vb, log_Phi_theta_plus_zeta, log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb, m1_beta, cp_betaX_X, mu_beta_vb, sig2_beta_vb, tau_vb, shuffled_ind, sample_q, c))
 }

@@ -188,7 +188,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       annealing_ls = list()
     }
     
-    if(isZ){
+    if(ifZ){
       Z <- update_Z_(gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, c = c)
     }
     
@@ -202,15 +202,25 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       lb_old <- lb_new
       it <- it + 1
       
+      # if(start_partial != Inf){
+      #   if(diff_lb > start_partial*tol & partial == F){
+      #     partial = F
+      #   }else{
+      #     partial = T
+      #     it_0 = it_0 + 1
+      #   }
+      # }
+      # 
+      
+      
       if(start_partial != Inf){
-        if(diff_lb > start_partial*tol & partial == F){
+        if(it < start_partial & partial == F){
           partial = F
         }else{
           partial = T
           it_0 = it_0 + 1
         }
       }
-      
       
       if (verbose != 0 &  (it == 1 | it %% max(5, batch_conv) == 0)) 
         cat(paste0("Iteration ", format(it), "... \n"))
@@ -296,8 +306,6 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       
 
       
-    
-      
       # different possible batch-coordinate ascent schemes:
       #
       
@@ -312,17 +320,12 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         if (is.null(mis_pat)) {
           
           tic("for loop")
-          if(ifZ){
-            coreDualLoopZ(cp_X, cp_Y_X, Z, gam_vb, theta_plus_zeta_vb, log_Phi_theta_plus_zeta,
-                         log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb,
-                         beta_vb, cp_X_Xbeta, mu_beta_vb, sig2_beta_vb, tau_vb,
-                         shuffled_ind, sample_q, c = c)
-          }else{
-            coreDualLoop(cp_X, cp_Y_X, gam_vb, log_Phi_theta_plus_zeta,
-                         log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb,
-                         beta_vb, cp_X_Xbeta, mu_beta_vb, sig2_beta_vb, tau_vb,
-                         shuffled_ind, sample_q, c = c)
-          }
+
+          coreDualLoop(cp_X, cp_Y_X, gam_vb, log_Phi_theta_plus_zeta,
+                       log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb,
+                       beta_vb, cp_X_Xbeta, mu_beta_vb, sig2_beta_vb, tau_vb,
+                       shuffled_ind, sample_q, c = c)
+
 
           time = toc()
           t = time$toc - time$tic
@@ -399,67 +402,67 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       m2_beta <- update_m2_beta_(gam_vb, mu_beta_vb, sig2_beta_vb, mis_pat = mis_pat)
       
 
-        Z <- update_Z_(gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, c = c)
-        # keep this order!
-        #  
-        L_vb <- c_s * sig02_inv_vb * shr_fac_inv * (theta_vb^2 + sig2_theta_vb - 2 * theta_vb * m0 + m0^2) / 2 / df 
-        rho_xi_inv_vb <- c_s * (A2_inv + sig02_inv_vb) 
+      Z <- update_Z_(gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, c = c)
+      # keep this order!
+      #  
+      L_vb <- c_s * sig02_inv_vb * shr_fac_inv * (theta_vb^2 + sig2_theta_vb - 2 * theta_vb * m0 + m0^2) / 2 / df 
+      rho_xi_inv_vb <- c_s * (A2_inv + sig02_inv_vb) 
+      
+      if (annealing & anneal_scale) {
         
-        if (annealing & anneal_scale) {
+        lam2_inv_vb <- update_annealed_lam2_inv_vb_(L_vb, c_s, df)
+        
+      } else {
+        
+        Q_app <- Q_approx_vec(L_vb)
+        
+        if (df == 1) {
           
-          lam2_inv_vb <- update_annealed_lam2_inv_vb_(L_vb, c_s, df)
+          lam2_inv_vb <- 1 / (Q_app * L_vb) - 1
+          
+        } else if (df == 3) {
+          
+          lam2_inv_vb <- exp(-log(3) - log(L_vb) + log(1 - L_vb * Q_app) - log(Q_app * (1 + L_vb) - 1)) - 1 / 3
           
         } else {
+          # also works for df = 3 but might be slightly less efficient than the above
           
-          Q_app <- Q_approx_vec(L_vb)
+          exponent <- (df + 1) / 2
           
-          if (df == 1) {
+          lam2_inv_vb <- sapply(1:p, function(j) {
             
-            lam2_inv_vb <- 1 / (Q_app * L_vb) - 1
+            exp(log(compute_integral_hs_(df, L_vb[j] * df, m = exponent, n = exponent, Q_ab = Q_app[j])) -
+                  log(compute_integral_hs_(df, L_vb[j] * df, m = exponent, n = exponent - 1, Q_ab = Q_app[j])))
             
-          } else if (df == 3) {
-            
-            lam2_inv_vb <- exp(-log(3) - log(L_vb) + log(1 - L_vb * Q_app) - log(Q_app * (1 + L_vb) - 1)) - 1 / 3
-            
-          } else {
-            # also works for df = 3 but might be slightly less efficient than the above
-            
-            exponent <- (df + 1) / 2
-            
-            lam2_inv_vb <- sapply(1:p, function(j) {
-              
-              exp(log(compute_integral_hs_(df, L_vb[j] * df, m = exponent, n = exponent, Q_ab = Q_app[j])) -
-                    log(compute_integral_hs_(df, L_vb[j] * df, m = exponent, n = exponent - 1, Q_ab = Q_app[j])))
-              
-            })
-            
-          }
+          })
           
         }
         
-        xi_inv_vb <- nu_xi_inv_vb / rho_xi_inv_vb
-        
-        sig2_theta_vb <- update_sig2_c0_vb_(q, 1 / (sig02_inv_vb * lam2_inv_vb * shr_fac_inv), c = c)
-        
-        theta_vb <- update_theta_vb_(Z, m0, sig02_inv_vb * lam2_inv_vb * shr_fac_inv, sig2_theta_vb,
-                                     vec_fac_st = NULL, zeta_vb, is_mat = FALSE, c = c)
-        
-        nu_s0_vb <- update_nu_vb_(1 / 2, p, c = c_s)
-        
-        rho_s0_vb <- c_s * (xi_inv_vb + 
-                              sum(lam2_inv_vb * shr_fac_inv * (theta_vb^2 + sig2_theta_vb - 2 * theta_vb * m0 + m0^2)) / 2) 
-        
-        sig02_inv_vb <- as.numeric(nu_s0_vb / rho_s0_vb)
-        
-        zeta_vb <- update_zeta_vb_(Z, theta_vb, n0, sig2_zeta_vb, t02_inv,
-                                   is_mat = FALSE, c = c) 
-        
-        #save all zeta_vb to visualize
-        zeta_ls = append(zeta_ls, list(zeta_vb))
-        
-        theta_plus_zeta_vb <- sweep(tcrossprod(theta_vb, rep(1, q)), 2, zeta_vb, `+`)
-        log_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE)
-        log_1_min_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE, lower.tail = FALSE)  
+      }
+      
+      xi_inv_vb <- nu_xi_inv_vb / rho_xi_inv_vb
+      
+      sig2_theta_vb <- update_sig2_c0_vb_(q, 1 / (sig02_inv_vb * lam2_inv_vb * shr_fac_inv), c = c)
+      
+      theta_vb <- update_theta_vb_(Z, m0, sig02_inv_vb * lam2_inv_vb * shr_fac_inv, sig2_theta_vb,
+                                   vec_fac_st = NULL, zeta_vb, is_mat = FALSE, c = c)
+      
+      nu_s0_vb <- update_nu_vb_(1 / 2, p, c = c_s)
+      
+      rho_s0_vb <- c_s * (xi_inv_vb + 
+                            sum(lam2_inv_vb * shr_fac_inv * (theta_vb^2 + sig2_theta_vb - 2 * theta_vb * m0 + m0^2)) / 2) 
+      
+      sig02_inv_vb <- as.numeric(nu_s0_vb / rho_s0_vb)
+      
+      zeta_vb <- update_zeta_vb_(Z, theta_vb, n0, sig2_zeta_vb, t02_inv,
+                                 is_mat = FALSE, c = c) 
+      
+      #save all zeta_vb to visualize
+      zeta_ls = append(zeta_ls, list(zeta_vb))
+      
+      theta_plus_zeta_vb <- sweep(tcrossprod(theta_vb, rep(1, q)), 2, zeta_vb, `+`)
+      log_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE)
+      log_1_min_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE, lower.tail = FALSE)  
 
       
       
