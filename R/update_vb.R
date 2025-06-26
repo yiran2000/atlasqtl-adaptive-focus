@@ -184,6 +184,30 @@ update_kappa_vb_ <- function(n, Y_norm_sq, cp_Y_X, cp_X_Xbeta, kappa,
   
 }
 
+update_kappa_vb_partial_ <- function(n, Y_norm_sq, cp_Y_X, cp_X_Xbeta, kappa, 
+                                     beta_vb, m2_beta, sig2_inv_vb, 
+                                     X_norm_sq = NULL, sample_q, c = 1) {
+  
+  diag_cp <- colSums(cp_X_Xbeta[,sample_q]*beta_vb[,sample_q])
+  
+  if (is.null(X_norm_sq)) { # no missing values in Y
+    
+    c * (kappa[sample_q] + (Y_norm_sq[sample_q] - 2 * colSums(beta_vb[,sample_q] * t(cp_Y_X)[,sample_q])  +
+                              (n - 1 + sig2_inv_vb) * colSums(m2_beta[,sample_q]) +
+                              diag_cp - (n - 1) * colSums(beta_vb[,sample_q]^2))/ 2) 
+    
+    
+  } else {
+    
+    c * (kappa + (Y_norm_sq - 2 * colSums(beta_vb * t(cp_Y_X))  +
+                    sig2_inv_vb * colSums(m2_beta) + colSums(X_norm_sq * m2_beta) +
+                    diag_cp - colSums(X_norm_sq * beta_vb^2))/ 2)
+    
+  }
+  
+  
+}
+
 
 update_kappa_vb_no_precompute_ <- function(Y, kappa, X_beta_vb, beta_vb, m2_beta, sig2_inv_vb, 
                              X_norm_sq = NULL, mis_pat = NULL, c = 1) {
@@ -283,4 +307,38 @@ update_Z_ <- function(gam_vb, mat_v_mu, log_1_pnorm, log_pnorm, c = 1) {
   imr0 <- inv_mills_ratio_(0, sqrt_c * mat_v_mu, log_1_pnorm, log_pnorm)
   (gam_vb * (inv_mills_ratio_(1, sqrt_c * mat_v_mu, log_1_pnorm, log_pnorm) - imr0) + imr0) / sqrt_c + mat_v_mu
   
+}
+
+update_Z_partial_ <- function(Z, gam_vb, mat_v_mu, log_1_pnorm, log_pnorm, sample_q, c = 1) {
+  
+  # log_1_pnorm = log_1_min_Phi_theta_plus_zeta
+  # log_pnorm = log_Phi_theta_plus_zeta
+  # mat_v_mu = theta_plus_zeta_vb
+  # sqrt_c = 1
+  # sample_q = sample_q + 1
+  
+  if (!isTRUE(all.equal(c, 1))) {
+    sqrt_c <- sqrt(c)
+    log_pnorm_all <- pnorm(sqrt_c * mat_v_mu[, sample_q, drop = FALSE], log.p = TRUE)
+    log_1_pnorm_all <- pnorm(sqrt_c * mat_v_mu[, sample_q, drop = FALSE], log.p = TRUE, lower.tail = FALSE)
+  } else {
+    sqrt_c <- 1
+    log_pnorm_all <- log_pnorm[, sample_q, drop = FALSE]
+    log_1_pnorm_all <- log_1_pnorm[, sample_q, drop = FALSE]
+  }
+  
+  mat_v_mu_sub <- mat_v_mu[, sample_q, drop = FALSE]
+  
+  imr0 <- inv_mills_ratio_(0, sqrt_c * mat_v_mu_sub, log_1_pnorm_all, log_pnorm_all)
+  imr1 <- inv_mills_ratio_(1, sqrt_c * mat_v_mu_sub, log_1_pnorm_all, log_pnorm_all)
+  
+  gam_vb_sub <- gam_vb[, sample_q, drop = FALSE]
+  
+  Z_sub <- (gam_vb_sub * (imr1 - imr0) + imr0) / sqrt_c + mat_v_mu_sub
+  
+  
+  # Z2 = Z
+  Z[, sample_q] <- Z_sub
+  
+  return(Z)
 }
