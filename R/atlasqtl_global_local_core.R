@@ -73,7 +73,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
   Y_norm_sq <- colSums(Y^2) # must be after the if as some entries of y set to 0 when missing values
   cp_X <- crossprod(X)
   cp_Y_X <- crossprod(Y, X)
-  t_init = toc()
+  t_init = toc(quiet = TRUE)
   time_init = t_init$toc - t_init$tic
   
 
@@ -223,9 +223,9 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       #     it_0 = it_0 + 1
       #   }
       # }
-      # 
+
       
-      
+
       if(start_partial != Inf){
         if(it < start_partial & partial == F){
           partial = F
@@ -234,7 +234,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           it_0 = it_0 + 1
         }
       }
-      
+
       if (verbose != 0 &  (it == 1 | it %% max(5, batch_conv) == 0)) 
         cat(paste0("Iteration ", format(it), "... \n"))
       
@@ -305,7 +305,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       
       sig2_inv_vb <- nu_vb / rho_vb
       # % #
-      t_sigma = toc()
+      t_sigma = toc(quiet = TRUE)
       time_sigma = t_sigma$toc - t_sigma$tic
       
       
@@ -328,14 +328,14 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         log_sig2_inv_vb <- update_log_sig2_inv_vb_(nu_vb, rho_vb)
       }
       
-      t_tau = toc()
+      t_tau = toc(quiet = TRUE)
       time_tau = t_tau$toc - t_tau$tic
       
       
       #beta
       tic("sig2_beta")
       sig2_beta_vb <- update_sig2_beta_vb_(n, sig2_inv_vb, tau_vb, X_norm_sq, c = c_cst) 
-      t_sig2_beta = toc()
+      t_sig2_beta = toc(quiet = TRUE)
       time_sig2_beta = t_sig2_beta$toc - t_sig2_beta$tic
       
 
@@ -361,7 +361,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                        shuffled_ind, sample_q, c = c_cst)
 
 
-          time = toc()
+          time = toc(quiet = TRUE)
           t = time$toc - time$tic
           
         } else {
@@ -370,7 +370,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                           log_1_min_Phi_theta_plus_zeta, log_sig2_inv_vb, log_tau_vb, 
                           beta_vb, cp_X_Xbeta, mu_beta_vb, sig2_beta_vb, tau_vb, 
                           shuffled_ind, sample_q, c = c_cst)
-          time = toc()
+          time = toc(quiet = TRUE)
           t = time$toc - time$tic
           
           
@@ -435,7 +435,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       
       tic("beta2")
       m2_beta <- update_m2_beta_(gam_vb, mu_beta_vb, sig2_beta_vb, mis_pat = mis_pat)
-      t_m2_beta = toc()
+      t_m2_beta = toc(quiet = TRUE)
       time_m2_beta = t_m2_beta$toc - t_m2_beta$tic
 
       tic("Z")
@@ -444,7 +444,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       }else{
         Z <- update_Z_(gam_vb, theta_plus_zeta_vb, log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, c = c_cst)
       }
-      t_Z = toc()
+      t_Z = toc(quiet = TRUE)
       time_Z = t_Z$toc - t_Z$tic
       
       
@@ -493,7 +493,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       theta_vb <- update_theta_vb_(Z, m0, sig02_inv_vb * lam2_inv_vb * shr_fac_inv, sig2_theta_vb,
                                    vec_fac_st = NULL, zeta_vb, is_mat = FALSE, c = c_cst)
       
-      t_theta = toc()
+      t_theta = toc(quiet = TRUE)
       time_theta = t_theta$toc - t_theta$tic
       
       tic("zeta")
@@ -507,7 +507,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       zeta_vb <- update_zeta_vb_(Z, theta_vb, n0, sig2_zeta_vb, t02_inv,
                                  is_mat = FALSE, c = c_cst) 
 
-      t_zeta = toc()
+      t_zeta = toc(quiet = TRUE)
       time_zeta = t_zeta$toc - t_zeta$tic
       
       #save all zeta_vb to visualize
@@ -519,7 +519,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       log_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE)
       log_1_min_Phi_theta_plus_zeta <- pnorm(theta_plus_zeta_vb, log.p = TRUE, lower.tail = FALSE)  
       
-      t_thetaPzeta = toc()
+      t_thetaPzeta = toc(quiet = TRUE)
       time_thetaPzeta = t_thetaPzeta$toc - t_thetaPzeta$tic
       
       
@@ -651,7 +651,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           
           
       }
-      t_ELBO = toc()
+      t_ELBO = toc(quiet = TRUE)
       time_ELBO = t_ELBO$toc - t_ELBO$tic
       # Switch algorithm status at certain iterations no matter we evaluate the convergence or not
       # leave the partial-update stage when reaching the maximum number of partial-update iterations
