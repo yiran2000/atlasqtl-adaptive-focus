@@ -123,6 +123,161 @@ check_annealing_ <- function(anneal) {
   
 }
 
+# Internal function implementing sanity checks for the partial-update scheme setup 
+# specification.
+#
+is_list_of_length <- function(x, n) {
+  is.list(x) && length(x) == n
+}
+
+parpare_partial_ <- function(
+    CAVI,
+    start_partial = NULL,
+    epsilon_scheme = NULL,
+    min_epsilon = NULL,
+    geom_alpha = NULL,
+    fix_size = NULL
+) {
+  
+  # Validate scheme
+  if (!CAVI %in% c("full", "random", "adaptive")) {
+    stop("CAVI must be one of: 'full', 'random', 'adaptive'")
+  }
+  
+  #check fix_size
+  if (CAVI != "adaptive" && !is.null(fix_size)) {
+    stop("fix_size can only be specified for 'adaptive' CAVI")
+  }
+  
+  if (CAVI == "full") {
+    # No other arguments needed
+    if (!is.null(start_partial) || !is.null(epsilon_scheme) ||
+        !is.null(min_epsilon) || !is.null(geom_alpha) || !is.null(fix_size)) {
+      stop("For 'full' CAVI, no partial parameters should be defined")
+    }
+    
+    start_partial <- Inf
+    epsilon_scheme <- NULL
+    min_epsilon <- NULL
+    geom_alpha <- NULL
+    fix_size <- NULL
+    
+    
+  } else if (CAVI == "random") {
+    # Only need start_partial
+    if (is.null(start_partial)){
+      start_partial = 50 #set default
+    }else{
+      if (!is.finite(start_partial) || start_partial <= 0 || start_partial %% 1 != 0) {
+        stop("For 'random' CAVI, 'start_partial' must be a positive finite integer")
+      }
+    }
+    
+    
+    # No other arguments needed
+    if (!is.null(epsilon_scheme) || !is.null(min_epsilon) || !is.null(geom_alpha)) {
+      stop("For 'random' CAVI, no epsilon parameters should be defined")
+    }
+    
+    
+    epsilon_scheme <- NULL
+    min_epsilon <- NULL
+    geom_alpha <- NULL
+    fix_size <- NULL
+    
+  } else if (CAVI == "adaptive") {
+    
+    # Only need start_partial
+    if (is.null(start_partial)){
+      start_partial = 50 #set default
+    }else{
+      if (!is.finite(start_partial) || start_partial <= 0 || start_partial %% 1 != 0) {
+        stop("For 'adaptive' CAVI, 'start_partial' must be a positive finite integer")
+      }
+    }
+    
+    if (is.null(epsilon_scheme)){
+      epsilon_scheme = "iteration"
+    }else{
+      if (!epsilon_scheme %in% c("minimum", "iteration", "ELBO")) {
+        stop("For 'adaptive' CAVI, 'epsilon_scheme' must be one of: 'minimum', 'iteration', 'ELBO'")
+      }
+    }
+    
+
+    if(!is.null(fix_size)) {
+      
+      if (fix_size <= 0 || fix_size >= 1){
+        stop("fix_size must be in (0, 1)")
+      }
+    }
+
+    
+    # Validate epsilon_param by scheme
+    if (epsilon_scheme == "minimum") {
+      
+      if (is.null(min_epsilon) || min_epsilon <= 0 || min_epsilon > 1) {
+        stop("Minimum scheme requires one 'min_epsilon' between 0 and 1")
+      }
+      
+      # No other arguments needed
+      if (!is.null(geom_alpha)) {
+        stop("For 'random' CAVI with 'minimum' scheme , no geom_alpha should be defined")
+      }
+      
+    } else if (epsilon_scheme == "iteration") {
+      
+      #set default values if not specified
+      
+      if(is.null(min_epsilon)) {
+        min_epsilon = 0
+      }else{
+        if (min_epsilon <= 0 || min_epsilon >= 1) {
+          stop("min_epsilon must be in (0, 1)")
+        }
+      }
+      
+      if(is.null(geom_alpha)) {
+        geom_alpha <- 0.95
+      }else{
+        if (geom_alpha <= 0 || geom_alpha >= 1){
+          stop("geom_alpha must be in (0, 1)")
+        }
+      }
+      
+      
+    } else if (epsilon_scheme == "ELBO") {
+      
+      # No other arguments needed
+      if (!is.null(geom_alpha)) {
+        stop("For 'random' CAVI with 'ELBO' scheme , no geom_alpha should be defined")
+      }
+      
+      if(is.null(min_epsilon)) {
+        min_epsilon = 0
+      }else{
+        if (min_epsilon <= 0 || min_epsilon >= 1) {
+          stop("min_epsilon must be in (0, 1)")
+        }
+      }
+      
+      
+    }
+    
+  }
+  
+  return(list(
+    start_partial = start_partial,
+    epsilon_scheme = epsilon_scheme,
+    min_epsilon = min_epsilon,
+    geom_alpha = geom_alpha,
+    fix_size = fix_size
+  ))
+}
+
+
+
+
 
 # Internal function implementing sanity checks and needed preprocessing for the
 # model hyperparameters before the application of the different `atlasqtl_*_core`

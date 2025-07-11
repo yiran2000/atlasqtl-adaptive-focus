@@ -53,7 +53,22 @@
 #' @param add_collinear_back Boolean for re-adding the collinear variables X 
 #'   (removed as part of \code{atlasqtl} to ensure the stability of inference) 
 #'   to the final posterior summaries. Default is \code{FALSE}.
-#'   
+#' @param CAVI String for CAVI scheme, one of "full", "random", "adaptive". 
+#' default is "full"
+#' @param start_partial for number of iterations before partial update in random 
+#' adaptive CAVI. Default is \code{NULL} for CAVI = "full" and 50 for CAVI = "random" 
+#' or "adaptive"
+#' @param epsilon_scheme for the choice of epsilon (level of randomness) in the 
+#' selection probability. One of "minimum", "iteration" and "ELBO". Only for 
+#' adaptive CAVI. If not specified, default is "iteration" with geom_alpha = 0.95 
+#' and min_epsilon = 0.
+#' @param min_epsilon for the minimum epsilon value. Must be specified between 0-1
+#' for CAVI = "adaptive", epsilon_scheme = "minimum". For other cases, default as 0
+#' @param geom_alpha for the geometric decreasing speed for CAVI = "adaptive", 
+#' epsilon_scheme = "iteration". Default 0.95
+#' @param fix_size for the fixed porportion of local factors to update if specified. 
+#' Only for the CAVI = "adaptive". Default is \code{NULL}, i.e., choice is purely
+#' based on Bernoulli probablity defined by the epsilon_scheme, not fixed size. 
 #' @details \code{atlasqtl} implements a flexible hierarchical regression 
 #'   framework that allows information-sharing across responses and predictors, 
 #'   thereby enhancing the detection of weak effects. \code{atlasqtl} is 
@@ -110,9 +125,13 @@
 #'                               are \code{TRUE}, the hyperparameters, resp. 
 #'                               initial variational parameters, used for 
 #'                               inference are saved as output.}
+#'  \item{time_init} Time spent on initialization
+#'  \item{perform_df} {If \code{eval_perform} is \code{TRUE} Details of timing, 
+#'  epsilon, subsample size, ELBO, ELBO_diff 
+#'  on each iteration if is 
 #'  \item{...}{If \code{full_output} is \code{TRUE} all inferred variational 
 #'             parameters are returned.}
-#'                               
+#'  
 #' @examples
 #' seed <- 123; set.seed(seed)
 #'
@@ -165,7 +184,20 @@
 #' #
 #' p0 <- c(mean(colSums(pat)), 10)
 #' 
-#' res_atlas <- atlasqtl(Y = Y, X = X, p0 = p0, user_seed = seed)
+#' #default, full CAVI
+#' res_atlas <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "full")
+#' 
+#' #random CAVI
+#' vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "random")
+#' 
+#' #AF CAVI, default is epsilon_scheme = iteration, start_partial = 50, geom_alpha = 0.95, min_epsilon = 0
+#' vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive")
+#' 
+#' #other epsilon_scheme of AF CAVI: minimum, i.e., always set epsilon to a minimum value
+#' vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive", epsilon_scheme = "iteration", min_epsilon = 0.01)
+#' 
+#' #other epsilon_scheme of AF CAVI: ELBO, i.e., epsilon is a logistic function of log ELBO difference
+#' vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive", epsilon_scheme = "ELBO")
 #'
 #' @references
 #' Helene Ruffieux, Anthony C. Davison, Jorg Hager, Jamie Inshaw, Benjamin P. 
@@ -182,20 +214,10 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                      full_output = FALSE, thinned_elbo_eval = TRUE, 
                      checkpoint_path = NULL, trace_path = NULL, 
                      add_collinear_back = FALSE,
-                     batch,
-                     tol,
-                     start_partial,
-                     max_partial,
-                     end_full = F, #whether the algorithm should go back to full in the end
-                     # epsilon = c(2, 1.5, 0.25),
-                     # epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
-                     fix_size = NULL,
-                     subsample_scheme = "logistic",
-                     min_epsilon = 0.1,
-                     geom_alpha = NULL,
-                     eval_perform,
-                     ifZ = F,
-                     ifTau = F) {
+                     tol = 0.01,
+                     CAVI = "full", start_partial=NULL,epsilon_scheme=NULL,min_epsilon = NULL,
+                     geom_alpha = NULL,epsilon_param=NULL,fix_size=NULL,
+                     eval_perform = F) {
   
   if (verbose != 0){
     cat(paste0("\n======================= \n",
@@ -205,13 +227,24 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
   
   check_verbose_(verbose)
   
+  #check annealing setups
   if (verbose != 0) cat("== Checking the annealing schedule ... \n\n")
   
   check_annealing_(anneal)
   
   if (verbose != 0) cat("... done. == \n\n")
   
+  #check partial-update scheme setups
+  if (verbose != 0) cat("== Prepare the CAVI scheme parameters ... \n\n")
   
+  config_CAVI <- parpare_partial_(CAVI,start_partial,
+                                  epsilon_scheme,
+                                  min_epsilon,
+                                  geom_alpha,fix_size)
+  
+  if (verbose != 0) cat("... done. == \n\n")
+  
+  #prepare data
   if (verbose != 0) cat("== Preparing the data ... \n\n")
   
   dat <- prepare_data_(Y, X, tol, maxit, user_seed, verbose, checkpoint_path, 
@@ -284,6 +317,7 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
   if (hs) {
     
     df <- 1
+    batch = "y" #use the C++ for the for loop
     
     res_atlas <- atlasqtl_global_local_core_(Y, X, shr_fac_inv, anneal, df,
                                              maxit, verbose, list_hyper,
@@ -292,17 +326,8 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                                              thinned_elbo_eval, debug,
                                              batch,
                                              tol,
-                                             start_partial,
-                                             max_partial, #maximum number of iterations for partial-update, if one wants to add
-                                             end_full, #whether the algorithm should go back to full in the end
-                                             # epsilon = c(2, 1.5, 0.25),
-                                             fix_size,
-                                             subsample_scheme,#e0, emax, ec50, n
-                                             min_epsilon,
-                                             geom_alpha,
-                                             eval_perform,
-                                             ifZ,
-                                             ifTau)
+                                             config_CAVI,
+                                             eval_perform)
     
   } else {
     

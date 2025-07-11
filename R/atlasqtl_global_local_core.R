@@ -7,12 +7,17 @@
 #
 library(tictoc)
 
-lognormal_cdf <- function(x, mu, sigma, m) {
-  return(m + (1 - m) * pnorm((log(x) - mu) / sigma))
-}
-emax <- function(x, e0=0, emax = 1, ec50, n) {
-  e0 + ((emax-e0) * x^n) / (ec50^n +x^n)
-}
+# lognormal_cdf <- function(x, mu, sigma, m) {
+#   return(m + (1 - m) * pnorm((log(x) - mu) / sigma))
+# }
+# emax <- function(x, e0=0, emax = 1, ec50, n) {
+#   e0 + ((emax-e0) * x^n) / (ec50^n +x^n)
+# }
+
+# update e:
+# e = lognormal_cdf(diff_lb, mu=epsilon[1], sigma=epsilon[2], m=epsilon[3])
+# e = 1- tanh_function(log(it)/2)
+
 logistic_function = function(x) {
   1/ (1 + exp(-x))
 }
@@ -31,22 +36,28 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                                         debug = FALSE, 
                                         batch, 
                                         tol,
-                                        start_partial = 20, #when partial-update starts
-                                        max_partial = NULL, #maximum number of iterations for partial-update, if one wants to add
-                                        end_full = F, #whether the algorithm should go back to full in the end
-                                        # epsilon = c(2, 1.5, 0.25),
-                                        # epsilon = c(0.2, 1, 2, 2),#e0, emax, ec50, n
-                                        fix_size = NULL,
-                                        subsample_scheme = "logistic",
-                                        min_epsilon = 0.1,
-                                        geom_alpha = NULL,
-                                        eval_perform,
-                                        ifZ = F,
-                                        ifTau = F) {
+                                        config_CAVI,
+                                        eval_perform) {
   
   n <- nrow(Y)
   p <- ncol(X)
   q <- ncol(Y)
+  
+  #devel specification of partial update that we don't use anymore
+  max_partial = NULL #maximum number of iterations for partial-update, if one wants to add
+  end_full = F #whether the algorithm should go back to full in the end
+  ifZ = F #whether Z is also partial 
+  ifTau = F #whether tau is also partial 
+  
+  #specifications of partial update
+  
+  scheme = config_CAVI$scheme
+  start_partial = config_CAVI$start_partial
+  epsilon_scheme = config_CAVI$epsilon_scheme
+  min_epsilon = config_CAVI$min_epsilon
+  geom_alpha = config_CAVI$geom_alpha
+  fix_size = config_CAVI$fix_size
+  
   
   # Pre-computing large matrices
   # 
@@ -179,8 +190,8 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       ELBO_ls = list() #ELBO
       ELBO_diff_ls = list() #difference of ELBO in two consecutive iterations
       it_ls = list() #iteration number
-      e_ls = list() #error term in response selection
-      it_eval_ls = list() #iterations where ELBO is evaluated
+      e_ls = list() #error term in response selection\
+      annealing_ls = list()
       
       time_loop_ls = list() #runtime of CoreDualLoop
       time_total_ls = list() #total runtime of one iteration
@@ -195,10 +206,12 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       time_ELBO_ls = list()
       
       subsample_size_ls = list() #number of responses selected in the iteration
-      zeta_ls = list() #zeta
-      select_prob_ls = list()
-      r_vc_ls = list()
-      annealing_ls = list()
+      
+      # it_eval_ls = list() #iterations where ELBO is evaluated
+      # zeta_ls = list() #zeta
+      # select_prob_ls = list()
+      # r_vc_ls = list()
+      
     }
     
     # if(ifZ){
@@ -215,70 +228,73 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       lb_old <- lb_new
       it <- it + 1
       
-      # if(start_partial != Inf){
-      #   if(diff_lb > start_partial*tol & partial == F){
-      #     partial = F
-      #   }else{
-      #     partial = T
-      #     it_0 = it_0 + 1
-      #   }
-      # }
-
+      start_partial_iter = T
       
-
-      if(start_partial != Inf){
-        if(it < start_partial & partial == F){
-          partial = F
-        }else{
-          partial = T
-          it_0 = it_0 + 1
+      if(start_partial_iter){ #starting partial update based on iterations, the optimal choice
+        if(start_partial != Inf){
+          if(it < start_partial & partial == F){
+            partial = F
+          }else{
+            partial = T
+            it_0 = it_0 + 1
+          }
+        }
+        
+      }else{ #starting partial update based on ELBO, do not use it anymore
+        if(start_partial != Inf){
+          if(diff_lb > start_partial*tol & partial == F){
+            partial = F
+          }else{
+            partial = T
+            it_0 = it_0 + 1
+          }
         }
       }
+      
 
+      
       if (verbose != 0 &  (it == 1 | it %% max(5, batch_conv) == 0)) 
         cat(paste0("Iteration ", format(it), "... \n"))
       
       
       # generate subsample
       if(partial){
-        # update e:
-        # e = lognormal_cdf(diff_lb, mu=epsilon[1], sigma=epsilon[2], m=epsilon[3])
-        if(subsample_scheme == "logistic"){
-          e = max(min_epsilon, logistic_function(log(diff_lb)))
-        }else if(subsample_scheme == "geometric"){
-          if(geom_alpha == 0){
-            e = 0
-          }else{
-            e <- max(min_epsilon, geom_alpha^(it_0-1))
-          }
-          # e = 1- tanh_function(log(it)/2)
-        }else if (subsample_scheme == "minimum"){
-          e = min_epsilon
-        }
-
-        #use log-scale relative ELBO
         
-        # calculate the selection probability 
-        if(subsample_scheme == "random"){
-          select_prob = rep(0.5, q)
-        }else{
+        #calculate the selection probability, with or without error
+        if(!is.null(epsilon_scheme)){
+          #in the adaptive CAVI scheme, calculate the error term epsilon for selection
+          if(epsilon_scheme == "ELBO"){
+            e = max(min_epsilon, logistic_function(log(diff_lb)))
+          }else if(epsilon_scheme == "iteration"){
+            if(geom_alpha == 0){
+              e = 0
+            }else{
+              e <- max(min_epsilon, geom_alpha^(it_0-1))
+            }
+          }else if (epsilon_scheme == "minimum"){ #the minimum error scheme
+            e = min_epsilon
+          }
+          
           r_vc = 1- apply((1 - gam_vb), 2, prod) #PPI
           select_prob =  (1 - e)*r_vc + e #probability of selecting each response by adding the error
+          
+        }else{
+          #in the random selection scheme, select_prob is just 0.5
+          select_prob = rep(0.5, q)
         }
 
+        
         if(batch == "y"){
-          if(is.null(fix_size)){
+          if(is.null(fix_size)){ #fix_size is only for the adaptive scheme, whether selecting a fixed number or based on Bernoulli 
             sample_q = c(0:(q-1))[rbinom(q, size = 1, prob = select_prob) == 1]
           }else{
             sample_q = sample(c(0:(q-1)), size = fix_size*q, replace = FALSE, prob = select_prob)
           }
-          
-          
         }else{
           sample_q = c(1:q)[rbinom(q, size = 1, prob = select_prob) == 1]
         }
         
-        select_prob_ls = append(select_prob_ls, list(select_prob))
+        # select_prob_ls = append(select_prob_ls, list(select_prob))
         
       }else{
         if(batch == "y"){
@@ -287,9 +303,10 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
           sample_q = sample(1:q)
         }
         
-        select_prob_ls = append(select_prob_ls, list(rep(1, q)))
+        # select_prob_ls = append(select_prob_ls, list(rep(1, q)))
       }
-      r_vc_ls = append(r_vc_ls, list(1- apply((1 - gam_vb), 2, prod)))
+      
+      # r_vc_ls = append(r_vc_ls, list(1- apply((1 - gam_vb), 2, prod)))
       
       #record partial and subsample_q
       if(eval_perform){
@@ -510,8 +527,8 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       t_zeta = toc(quiet = TRUE)
       time_zeta = t_zeta$toc - t_zeta$tic
       
-      #save all zeta_vb to visualize
-      zeta_ls = append(zeta_ls, list(zeta_vb))
+      # #save all zeta_vb to visualize
+      # zeta_ls = append(zeta_ls, list(zeta_vb))
       
       tic("theta+zeta")
       
@@ -599,19 +616,12 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         # diff_lb = abs(lb_new - lb_old)
         diff_lb = lb_new - lb_old
         
-        # Record the iteration where ELBO is evaluated
-        if(eval_perform){
-          it_eval_ls = c(it_eval_ls, it)
-        }
-        
-        # Set different tolerance depending on the stage of the algorithm
-        
-        # if(init){
-        #   tol = tol_init
-        # }else{
-        #   tol = tol_tight
+        # # Record the iteration where ELBO is evaluated
+        # if(eval_perform){
+        #   it_eval_ls = c(it_eval_ls, it)
         # }
-        
+
+
         sum_exceed <- sum(diff_lb > (times_conv_sched * tol))
         # times_conv_sched*tol sets how many more iterations should be conducted before the next ELBO evaluaion, 
         # which is defined by batch_conv_shed
@@ -653,15 +663,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
       }
       t_ELBO = toc(quiet = TRUE)
       time_ELBO = t_ELBO$toc - t_ELBO$tic
-      # Switch algorithm status at certain iterations no matter we evaluate the convergence or not
-      # leave the partial-update stage when reaching the maximum number of partial-update iterations
-      # leave the inital stage when reaching max_init
-      # if(!is.null(max_init)){
-      #   if(it >= max_init & init){
-      #     init = F
-      #     partial = T
-      #   }
-      # }
+
 
       if(!is.null(max_partial)){
         if(end_full & partial & it_0 >= max_partial){
@@ -764,12 +766,12 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
         create_named_list_(beta_vb, gam_vb, theta_vb, zeta_vb, 
                            n, p, q, anneal, converged, it, maxit, tol, lb_opt, 
                            diff_lb,
-                           perform_df,
-                           it_eval_ls,
-                           zeta_ls,
-                           select_prob_ls,
-                           r_vc_ls,
-                           time_init)
+                           perform_df,time_init)
+                           # it_eval_ls,
+                           # zeta_ls,
+                           # select_prob_ls,
+                           # r_vc_ls,
+
         
       } else {
         create_named_list_(beta_vb, gam_vb, theta_vb, zeta_vb, 
@@ -853,72 +855,3 @@ elbo_global_local_full_ <- function(Y, sample_q, partial, ifTau, A2_inv, beta_vb
   as.numeric(elbo_A + elbo_B + elbo_C + elbo_D + elbo_E + elbo_F + elbo_G + elbo_H)
   
 }
-
-
-#The only change of whether we precompute or not in evaluating elbo is to compute kappa
-elbo_global_local_partial_ <- function(Y, X, sample_q, A2_inv, beta_vb, df, eta, eta_vb, gam_vb, 
-                               kappa, kappa_vb, L_vb, lam2_inv_vb, 
-                               log_1_min_Phi_theta_plus_zeta, log_Phi_theta_plus_zeta, m0, m2_beta, 
-                               n0, nu, nu_s0_vb, nu_vb, nu_xi_inv_vb, 
-                               Q_app, rho, rho_s0_vb, rho_vb, rho_xi_inv_vb, 
-                               shr_fac_inv, sig02_inv_vb, sig2_beta_vb, 
-                               sig2_inv_vb,  sig2_theta_vb, sig2_zeta_vb, 
-                               t02_inv, tau_vb, theta_vb, vec_sum_log_det_zeta, 
-                               xi_inv_vb, zeta_vb, mis_pat) {
-  # browser()
-  Y = Y[, sample_q]
-  n <- nrow(Y)
-  p <- length(L_vb)
-  
-  # Get the X_beta_vb and X_norm_sq for the complete data
-  X_beta_vb = X %*% beta_vb
-  if (!is.null(mis_pat)) {
-    X_norm_sq <- crossprod(X^2, mis_pat)
-  } else {
-    X_norm_sq <- NULL
-  }
-  
-  # needed for monotonically increasing elbo.
-  #
-  eta_vb <- update_eta_vb_(n, eta[sample_q], gam_vb[,sample_q], mis_pat[,sample_q])
-  kappa_vb <- update_kappa_vb_no_precompute_(Y, kappa[sample_q], X_beta_vb[,sample_q], beta_vb[,sample_q], m2_beta[,sample_q], 
-                                             sig2_inv_vb, X_norm_sq, mis_pat[,sample_q])
-  
-  nu_vb <- update_nu_vb_(nu, sum(gam_vb[,sample_q]))
-  rho_vb <- update_rho_vb_(rho, m2_beta[,sample_q], tau_vb[sample_q])
-  
-  log_tau_vb <- update_log_tau_vb_(eta_vb, kappa_vb) #eta_vb and kappa_vb already updated
-  log_sig2_inv_vb <- update_log_sig2_inv_vb_(nu_vb, rho_vb)
-  
-  log_sig02_inv_vb <- update_log_sig2_inv_vb_(nu_s0_vb, rho_s0_vb)
-  log_xi_inv_vb <- update_log_sig2_inv_vb_(nu_xi_inv_vb, rho_xi_inv_vb)
-  
-  
-  elbo_A <- e_y_(n, kappa[sample_q], kappa_vb, log_tau_vb, m2_beta[,sample_q], sig2_inv_vb, tau_vb[sample_q], mis_pat[,sample_q])
-  
-  elbo_B <- e_beta_gamma_(gam_vb[,sample_q], log_1_min_Phi_theta_plus_zeta[,sample_q], log_Phi_theta_plus_zeta[,sample_q], log_sig2_inv_vb, 
-                          log_tau_vb, zeta_vb[sample_q], 
-                          theta_vb[sample_q], m2_beta[,sample_q], sig2_beta_vb[sample_q], sig2_zeta_vb,
-                          sig2_theta_vb[sample_q], sig2_inv_vb, tau_vb[sample_q])
-  
-  elbo_C <- e_theta_hs_(lam2_inv_vb[sample_q], L_vb[sample_q], log_sig02_inv_vb + log(shr_fac_inv), 
-                        m0, theta_vb[sample_q], Q_app[sample_q], sig02_inv_vb * shr_fac_inv, 
-                        sig2_theta_vb[sample_q], df)
-  
-  elbo_D <- e_zeta_(zeta_vb[sample_q], n0[sample_q], sig2_zeta_vb, t02_inv, vec_sum_log_det_zeta)
-  
-  elbo_E <- e_tau_(eta[sample_q], eta_vb, kappa[sample_q], kappa_vb, log_tau_vb, tau_vb[sample_q])
-  
-  elbo_F <- e_sig2_inv_hs_(xi_inv_vb, nu_s0_vb, log_xi_inv_vb, log_sig02_inv_vb, 
-                           rho_s0_vb, sig02_inv_vb)
-  
-  elbo_G <- e_sig2_inv_(1 / 2, nu_xi_inv_vb, log_xi_inv_vb, A2_inv, 
-                        rho_xi_inv_vb, xi_inv_vb)
-  
-  elbo_H <- e_sig2_inv_(nu, nu_vb, log_sig2_inv_vb, rho, rho_vb, sig2_inv_vb)
-  
-  # as.numeric(elbo_A/length(sample_q) + elbo_B/length(sample_q) + elbo_C/length(sample_q) + elbo_D/length(sample_q) + elbo_E/length(sample_q) + elbo_F + elbo_G + elbo_H)
-  as.numeric(elbo_A + elbo_B + elbo_C + elbo_D + elbo_E + elbo_F + elbo_G + elbo_H)/length(sample_q)
-  
-}
-
