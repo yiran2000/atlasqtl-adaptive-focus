@@ -17,30 +17,10 @@ v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://www.gnu.org
 
 ## Overview
 
-**atlasqtl** is an R package implementing a scalable hierarchical
-modelling framework for variable selection in regression problems with
-many predictors and many responses. The method is tailored to the
-detection of hotspots, i.e., predictors associated with several
-responses. The *hotspot propensity* of each candidate predictor is
-modelled using a horseshoe distribution (Carvalho et al.  2009), whose
-local scale flexibly models the large hotspot effects and whose global
-scale adapts to the overall signal sparsity. Inference is performed
-using efficient batch variational inference updates which are coupled
-with simulated annealing schemes to improve the exploration of
-multimodal parameter spaces.
+**atlasqtl-adaptive-focus** is the atlasQTL (see "hruffieux/atlasqtl") method with 
+a improved adaptive-focus CAVI implementation. This strategy is transferale to 
+various sparse Bayesian hiearchical models
 
-The method can be employed in any sparse multiple-response regression
-setting, and is particularly suited to large molecular quantitative
-trait locus (QTL) problems, in which hotspot genetic variants,
-controlling many molecular levels at once, may be responsible for
-decisive regulatory mechanisms. Hence, our approach is a tool that can
-help towards understanding the functional architecture underlying
-complex traits and outlining a *hotspot atlas* of the human genome.
-
-Reference: H. Ruffieux, A. C. Davison, J. Hager, J. Inshaw, B. Fairfax,
-S. Richardson, and L. Bottolo. A global-local approach for detecting
-hotspots in multiple response regression. The Annals of Applied
-Statistics, 14:905-928, 2020.
 
 ## Installation
 
@@ -62,8 +42,8 @@ after having installed Homebrew.
 Then, to install the package in R, run the following command:
 
 ``` r
-if(!require(remotes)) install.packages("remotes")
-remotes::install_github("hruffieux/atlasqtl")
+if (!require(remotes)) install.packages("remotes")
+remotes::install_github("yiran2000/atlasqtl-adaptive-focus")
 ```
 
 ## License and authors
