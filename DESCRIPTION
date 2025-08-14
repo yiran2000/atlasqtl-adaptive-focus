@@ -1,28 +1,28 @@
-Package: atlasqtl
+Package: atlasqtl-adaptive-focus
 Type: Package
-Title: Flexible sparse regression for hierarchically-related responses using annealed variational inference
+Title: Adaptive-focus implementation of atlasQTL
 Version: 0.1.4
 Date: 2021-01-16
 Authors@R: c(
-    person("Helene", "Ruffieux", email = "helene.ruffieux@mrc-bsu.cam.ac.uk",
+    person("Yiran", "Li", email = "yiran.li@mrc-bsu.cam.ac.uk",
             role = c("aut", "cre")),
-    person("Sylvia", "Richardson", email = "sylvia.richardson@mrc-bsu.cam.ac.uk",
-            role = c("aut")),
-    person("Leonardo", "Bottolo", email = "lb664@cam.ac.uk",
-            role = c("aut")))
-Description: Flexible sparse regression for variable selection in large 
+    person("Helene", "Ruffieux", email = "helene.ruffieux@mrc-bsu.cam.ac.uk",
+            role = c("aut", "cre")))
+Description: Adaptive-focus strategy of coordinate ascent variational inference 
+    (AF-CAVI),a strategy that selectively updates a few instead of all parameters 
+    in CAVI, can efficiently boost the scalability and computational efficieny of
+    Bayesian hiearchical models. This package provides an AF-CAVI implementation 
+    for atlasQTL, a flexible sparse regression for variable selection in large 
     predictor and response settings, based on a series of hierarchically-related 
-    spike-and-slab submodels. The model is also tailored to the detection of 
-    hotspots, namely, predictors associated with multiple responses, which it 
-    represents using a global-local horseshoe specification. Inference uses 
-    closed-form variational updates coupled with a simulated annealing algorithm 
-    to enhance exploration of highly multimodal spaces. This software allows 
-    joint inference at large scale, e.g., for molecular quantitative trait locus 
-    (QTL) studies, where the hotspots are genetic variants regulating several 
-    molecular traits simultaneously. See H. Ruffieux, A. C. Davison, J. Hager,
-    J. Inshaw, B. Fairfax, S. Richardson, and L. Bottolo. A global-local 
-    approach for detecting hotspots in multiple response regression. The Annals 
-    of Applied Statistics, 14:905-928, 2020.
+    spike-and-slab submodels. This implementation allows for multi-trait joint 
+    quantatitive trait loci (QTL) mapping at a scale of thousands of traits and 
+    genomic variants, and tens of thousands samples. The atlasQTL model is 
+    particularly designed for QTL hotspot (QTL associated with multiple traits)
+    detections with a hiearchial structure. See details of the atlasQTL model in 
+    H. Ruffieux, A. C. Davison, J. Hager, J. Inshaw, B. Fairfax, S. Richardson, 
+    nd L. Bottolo. A global-local approach for detecting hotspots in multiple 
+    response regression. The Annals of Applied Statistics, 14:905-928, 2020.
+    
 Depends:
     R (>= 3.2.0)
 License: GPL (>= 3) | file LICENSE
