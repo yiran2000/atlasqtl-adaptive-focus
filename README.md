@@ -3,7 +3,7 @@
 prevents from committing if the README.Rmd has changed, but has not been 
 re-knitted to generate an updated README.md -->
 
-## atlasqtl - variable selection in sparse regression with hierarchically-related responses <img src="man/figures/atlasqtl_logo.png" align="right" height="150"/>
+## atlasqtl-adaptive-focus - adaptive-focus implementation of atlasqtl, an efficient variable selection in sparse regression with hierarchically-related responses <img src="man/figures/atlasqtl_logo.png" align="right" height="150"/>
 
 <!-- Run for the R CMD checks, run usethis::use_github_actions() to set up the pipeline, possibly modify the .yaml file and then: -->
 <!-- [![R build status](https://github.com/hruffieux/atlasqtl/workflows/R-CMD-check/badge.svg)](https://github.com/hruffieux/atlasqtl/actions) # TODO. not enabled yet, needs pre-install of GSL lib for windows -->
@@ -17,9 +17,7 @@ v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://www.gnu.org
 
 ## Overview
 
-**atlasqtl-adaptive-focus** is the atlasQTL (see "hruffieux/atlasqtl") method with 
-a improved adaptive-focus CAVI implementation. This strategy is transferale to 
-various sparse Bayesian hiearchical models
+**atlasqtl-adaptive-focus** is the adaptive focus coordinate ascent variational inference (AF-CAVI) implementation of atlasQTL (see "hruffieux/atlasqtl") method. Updating a few instead of all parameters in large-scale problems, this implementation allows for multi-trait joint quantatitive trait loci (QTL) mapping at a scale of thousands of traits and genomic variants, and tens of thousands samples. This package also aims to give an example implementation AF-CAVI for a wide range of sparse Bayesian hiearchical models.
 
 
 ## Installation
