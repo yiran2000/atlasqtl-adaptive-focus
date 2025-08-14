@@ -1,13 +1,13 @@
-Package: atlasqtl-adaptive-focus
+Package: atlasqtlAF
 Type: Package
 Title: Adaptive-focus implementation of atlasQTL
 Version: 0.1.4
 Date: 2021-01-16
 Authors@R: c(
     person("Yiran", "Li", email = "yiran.li@mrc-bsu.cam.ac.uk",
-            role = c("aut", "cre")),
+            role = c("cre")),
     person("Helene", "Ruffieux", email = "helene.ruffieux@mrc-bsu.cam.ac.uk",
-            role = c("aut", "cre")))
+            role = c("aut")))
 Description: Adaptive-focus strategy of coordinate ascent variational inference 
     (AF-CAVI),a strategy that selectively updates a few instead of all parameters 
     in CAVI, can efficiently boost the scalability and computational efficieny of
