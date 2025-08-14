@@ -54,6 +54,8 @@ prepare_data_ <- function(Y, X, tol, maxit, user_seed, verbose, checkpoint_path,
   if (is.null(colnames(X))) colnames(X) <- paste0("Cov_x_", 1:p)
   if (is.null(colnames(Y))) colnames(Y) <- paste0("Resp_", 1:q)
   
+
+  sd_X <- apply(X, 2, sd)
   X <- scale(X)
   
   list_X_cst <- rm_constant_(X, verbose)
@@ -82,7 +84,7 @@ prepare_data_ <- function(Y, X, tol, maxit, user_seed, verbose, checkpoint_path,
   
   Y <- scale(Y, center = TRUE, scale = FALSE)
   
-  create_named_list_(Y, X, bool_rmvd_x, initial_colnames_X, rmvd_cst_x, rmvd_coll_x) 
+  create_named_list_(Y, X, sd_X, bool_rmvd_x, initial_colnames_X, rmvd_cst_x, rmvd_coll_x) 
   
 }
 

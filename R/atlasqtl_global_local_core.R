@@ -34,7 +34,7 @@ atlasqtl_global_local_core_ <- function(Y, X, shr_fac_inv, anneal, df,
                                         trace_path = NULL, full_output = FALSE, 
                                         thinned_elbo_eval = TRUE,
                                         debug = FALSE, 
-                                        batch, 
+                                        batch = "y", 
                                         tol,
                                         config_CAVI,
                                         eval_perform) {

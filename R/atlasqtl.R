@@ -254,6 +254,7 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
   
   X <- dat$X
   Y <- dat$Y
+  sd_X = dat$sd_X
   
   n <- nrow(X)
   p <- ncol(X)
@@ -324,7 +325,7 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                                              list_init, checkpoint_path,
                                              trace_path, full_output,
                                              thinned_elbo_eval, debug,
-                                             batch,
+                                             batch = "y",
                                              tol,
                                              config_CAVI,
                                              eval_perform)
@@ -369,6 +370,9 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
   class(res_atlas) <- "atlasqtl"
   
   if (verbose != 0) cat("... done. == \n\n")
+
+  res_atlas$beta_vb_rescal = res_atlas$beta_vb/sd_X
+  # res_atlas$sd_X = sd_X
   
   res_atlas
   
