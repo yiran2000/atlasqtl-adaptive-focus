@@ -1,5 +1,5 @@
-# This file is part of the `atlasqtl` R package:
-#     https://github.com/hruffieux/atlasqtl
+# This file is part of the `AFatlasqtl` R package:
+#     https://github.com/yiran2000/atlasqtl-adaptive-focus
 #
 # Internal functions gathering the ELBO terms common to core algorithms.
 #

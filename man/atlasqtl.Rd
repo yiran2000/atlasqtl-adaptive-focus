@@ -10,7 +10,6 @@ atlasqtl(
   X,
   p0,
   anneal = c(1, 2, 10),
-  tol = 0.1,
   maxit = 1000,
   user_seed = NULL,
   verbose = 1,
@@ -22,7 +21,16 @@ atlasqtl(
   thinned_elbo_eval = TRUE,
   checkpoint_path = NULL,
   trace_path = NULL,
-  add_collinear_back = FALSE
+  add_collinear_back = FALSE,
+  tol = 0.01,
+  CAVI = "full",
+  start_partial = NULL,
+  epsilon_scheme = NULL,
+  min_epsilon = NULL,
+  geom_alpha = NULL,
+  epsilon_param = NULL,
+  fix_size = NULL,
+  eval_perform = F
 )
 }
 \arguments{
@@ -42,8 +50,6 @@ entry is the type of schedule: 1 = geometric spacing (default),
 2 = harmonic spacing or 3 = linear spacing, the second entry is the initial 
 temperature (default is 2), and the third entry is the temperature grid 
 size (default is 10). If \code{NULL}, no annealing is performed.}
-
-\item{tol}{Tolerance for the stopping criterion (default is 0.1).}
 
 \item{maxit}{Maximum number of iterations allowed (default is 1000).}
 
@@ -90,14 +96,43 @@ propensities. Default is \code{NULL}, for no trace saved.}
 \item{add_collinear_back}{Boolean for re-adding the collinear variables X 
 (removed as part of \code{atlasqtl} to ensure the stability of inference) 
 to the final posterior summaries. Default is \code{FALSE}.}
+
+\item{tol}{Tolerance for the stopping criterion (default is 0.1).}
+
+\item{CAVI}{String for CAVI scheme, one of "full", "random", "adaptive". 
+default is "full"}
+
+\item{start_partial}{for number of iterations before partial update in random 
+adaptive CAVI. Default is \code{NULL} for CAVI = "full" and 50 for CAVI = "random" 
+or "adaptive"}
+
+\item{epsilon_scheme}{for the choice of epsilon (level of randomness) in the 
+selection probability. One of "minimum", "iteration" and "ELBO". Only for 
+adaptive CAVI. If not specified, default is "iteration" with geom_alpha = 0.95 
+and min_epsilon = 0.}
+
+\item{min_epsilon}{for the minimum epsilon value. Must be specified between 0-1
+for CAVI = "adaptive", epsilon_scheme = "minimum". For other cases, default as 0}
+
+\item{geom_alpha}{for the geometric decreasing speed for CAVI = "adaptive", 
+epsilon_scheme = "iteration". Default 0.95}
+
+\item{fix_size}{for the fixed porportion of local factors to update if specified. 
+Only for the CAVI = "adaptive". Default is \code{NULL}, i.e., choice is purely
+based on Bernoulli probablity defined by the epsilon_scheme, not fixed size.}
 }
 \value{
 An object of class "\code{atlasqtl}" containing the following 
   variational estimates and settings:
+ 
  \item{beta_vb}{Estimated effect size matrix of dimension p x q. Entry (s, t) 
                 corresponds to the variational posterior mean 
                 (mu_beta_vb_st x gam_vb_st) of the regression effect between 
                 candidate predictor s and response t.}
+ \item{beta_vb_rescal}{Rescaled beta to its originial values by dividing beta_vb
+                       by sd_X. Note that since X is centered and scaled, and 
+                       Y is centered, beta_vb must be rescaled by dividing the 
+                       standard deviation of X to its orginial values.}
  \item{gam_vb}{Posterior inclusion probability matrix of dimension p x q.
                Entry (s, t) corresponds to the variational posterior 
                probability of association between candidate predictor s 
@@ -130,6 +165,10 @@ An object of class "\code{atlasqtl}" containing the following
                               are \code{TRUE}, the hyperparameters, resp. 
                               initial variational parameters, used for 
                               inference are saved as output.}
+ \item{time_init} Time spent on initialization
+ \item{perform_df} {If \code{eval_perform} is \code{TRUE} Details of timing, 
+ epsilon, subsample size, ELBO, ELBO_diff}
+ on each iteration if is 
  \item{...}{If \code{full_output} is \code{TRUE} all inferred variational 
             parameters are returned.}
 }
@@ -208,7 +247,20 @@ Y <- cbind(Y_act, Y_inact)[, shuff_y_ind]
 #
 p0 <- c(mean(colSums(pat)), 10)
 
-res_atlas <- atlasqtl(Y = Y, X = X, p0 = p0, user_seed = seed)
+#default, full CAVI
+res_atlas <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "full")
+
+#random CAVI
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "random")
+
+#AF CAVI, default is epsilon_scheme = iteration, start_partial = 50, geom_alpha = 0.95, min_epsilon = 0
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive")
+
+#other epsilon_scheme of AF CAVI: minimum, i.e., always set epsilon to a minimum value
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive", epsilon_scheme = "iteration", min_epsilon = 0.01)
+
+#other epsilon_scheme of AF CAVI: ELBO, i.e., epsilon is a logistic function of log ELBO difference
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive", epsilon_scheme = "ELBO")
 
 }
 \references{

@@ -1,5 +1,5 @@
-# This file is part of the `atlasqtl` R package:
-#     https://github.com/hruffieux/atlasqtl
+# This file is part of the `AFatlasqtl` R package:
+#     https://github.com/yiran2000/atlasqtl-adaptive-focus
 #
 
 #' Flexible sparse regression for hierarchically-related responses using 
@@ -89,10 +89,15 @@
 #'
 #' @return An object of class "\code{atlasqtl}" containing the following 
 #'   variational estimates and settings:
+#'  
 #'  \item{beta_vb}{Estimated effect size matrix of dimension p x q. Entry (s, t) 
 #'                 corresponds to the variational posterior mean 
 #'                 (mu_beta_vb_st x gam_vb_st) of the regression effect between 
 #'                 candidate predictor s and response t.}
+#'  \item{beta_vb_rescal}{Rescaled beta to its originial values by dividing beta_vb
+#'                        by sd_X. Note that since X is centered and scaled, and 
+#'                        Y is centered, beta_vb must be rescaled by dividing the 
+#'                        standard deviation of X to its orginial values.}
 #'  \item{gam_vb}{Posterior inclusion probability matrix of dimension p x q.
 #'                Entry (s, t) corresponds to the variational posterior 
 #'                probability of association between candidate predictor s 
@@ -127,10 +132,11 @@
 #'                               inference are saved as output.}
 #'  \item{time_init} Time spent on initialization
 #'  \item{perform_df} {If \code{eval_perform} is \code{TRUE} Details of timing, 
-#'  epsilon, subsample size, ELBO, ELBO_diff 
+#'  epsilon, subsample size, ELBO, ELBO_diff}
 #'  on each iteration if is 
 #'  \item{...}{If \code{full_output} is \code{TRUE} all inferred variational 
 #'             parameters are returned.}
+#'  
 #'  
 #' @examples
 #' seed <- 123; set.seed(seed)
@@ -307,42 +313,22 @@ atlasqtl <- function(Y, X, p0, anneal = c(1, 2, 10), maxit = 1000,
                "**************************************************** \n\n"))
     
     cat(paste0("======================================================= \n",
-               "== ATLASQTL: fast global-local hotspot QTL detection == \n",
+               "== AFatlasQTL: fast global-local hotspot QTL detection with AF-CAVI == \n",
                "======================================================= \n\n"))
   }
+
   
-  
-  hs <- TRUE
-  debug <- TRUE
-  
-  if (hs) {
+  res_atlas <- atlasqtl_global_local_core_(Y, X, shr_fac_inv, anneal, df = 1,
+                                           maxit, verbose, list_hyper,
+                                           list_init, checkpoint_path,
+                                           trace_path, full_output,
+                                           thinned_elbo_eval, debug = T,
+                                           batch = "y", #use the C++ for the for loop
+                                           tol,
+                                           config_CAVI,
+                                           eval_perform)
     
-    df <- 1
-    batch = "y" #use the C++ for the for loop
-    
-    res_atlas <- atlasqtl_global_local_core_(Y, X, shr_fac_inv, anneal, df,
-                                             maxit, verbose, list_hyper,
-                                             list_init, checkpoint_path,
-                                             trace_path, full_output,
-                                             thinned_elbo_eval, debug,
-                                             batch = "y",
-                                             tol,
-                                             config_CAVI,
-                                             eval_perform)
-    
-  } else {
-    
-    if (!is.null(trace_path)) 
-      warning(paste0("Provided argument trace_path not used, when using the ",
-                     "global-scale-only model."))
-    
-    res_atlas <- atlasqtl_global_core_(Y, X, shr_fac_inv, anneal, df, tol, 
-                                       maxit, verbose, list_hyper, list_init, 
-                                       checkpoint_path, full_output, 
-                                       thinned_elbo_eval, debug, 
-                                       batch)
-    
-  }
+ 
   
   res_atlas$p0 <- p0
   

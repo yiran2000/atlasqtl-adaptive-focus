@@ -1,5 +1,6 @@
-# This file is part of the `atlasqtl` R package:
-#     https://github.com/hruffieux/atlasqtl
+# This file is part of the `AFatlasqtl` R package:
+#     https://github.com/yiran2000/atlasqtl-adaptive-focus
+#
 #
 # Internal core function to call the variational algorithm for global-local 
 # hotspot propensity modelling. 

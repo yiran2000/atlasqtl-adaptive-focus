@@ -1,8 +1,7 @@
 /*
- *
- * This file is part of the `atlasqtl` R package:
- *     https://github.com/hruffieux/atlasqtl
- *
+ * This file is part of the `AFatlasqtl` R package:
+ *      https://github.com/yiran2000/atlasqtl-adaptive-focus
+ *      
  * Functions for computationally expensive updates in algorithms without
  * external information.
  *
@@ -32,20 +31,6 @@ double logOnePlusExp(double x) {
   return log(exp(x-m) + exp(-m)) + m;
 }
 
-// // Scalar version of inverse Mills ratio with dynamic log-pnorm input
-// inline double inv_mills_ratio_scalar(int y, double u, double log_1_p, double log_p) {
-//   static const double log_sqrt_2pi = 0.5 * std::log(2 * M_PI);
-//   double numer = std::exp(-0.5 * u * u - log_sqrt_2pi);
-//   if (y == 1) {
-//     double m = numer / std::exp(log_p);
-//     return (m < -u) ? -u : m;
-//   } else {
-//     double m = - numer / std::exp(log_1_p);
-//     return (m > -u) ? -u : m;
-//   }
-// }
-
-
 // for atlasqtl_core function
 // [[Rcpp::export]]
 void coreDualLoop(const MapMat cp_X,
@@ -70,9 +55,6 @@ void coreDualLoop(const MapMat cp_X,
   
   for (int a = 0; a < sample_q.size(); a++) {
     int k = sample_q[a];
-    
-    // Rcout << "two" << a << " " << k <<  "\n";
-    // Rcout << sample_q << "\n";
     
     for (int b = 0; b < shuffled_ind.size(); b++) {
       int j = shuffled_ind[b];

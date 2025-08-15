@@ -37,5 +37,18 @@ p0 <- c(5, 25)
 
 # Continuous outcomes, no covariates
 #
-vb <- atlasqtl(Y = Y, X = X, p0 = p0)
+#default, full CAVI
+res_atlas <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "full")
+
+#random CAVI
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "random")
+
+#AF CAVI, default is epsilon_scheme = iteration, start_partial = 50, geom_alpha = 0.95, min_epsilon = 0
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive")
+
+#other epsilon_scheme of AF CAVI: minimum, i.e., always set epsilon to a minimum value
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive", epsilon_scheme = "iteration", min_epsilon = 0.01)
+
+#other epsilon_scheme of AF CAVI: ELBO, i.e., epsilon is a logistic function of log ELBO difference
+vb <- atlasqtl(Y = Y, X = X, p0 = p0, CAVI = "adaptive", epsilon_scheme = "ELBO")
 

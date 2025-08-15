@@ -1,5 +1,5 @@
-# This file is part of the `atlasqtl` R package:
-#     https://github.com/hruffieux/atlasqtl
+# This file is part of the `AFatlasqtl` R package:
+#     https://github.com/yiran2000/atlasqtl-adaptive-focus
 #
 
 #' Gather model hyperparameters provided by the user.
