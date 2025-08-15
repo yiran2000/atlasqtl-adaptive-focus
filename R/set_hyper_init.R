@@ -160,6 +160,7 @@ auto_set_hyper_ <- function(Y, p, p0) {
   
   dn <- 1e-6
   up <- 1e5
+  # browser()
 
   # Get n0 and t02 by specifying a prior expectation and variance for number of 
   # predictors associated with each response
